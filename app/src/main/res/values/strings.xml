@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Schichtwerk</string>
+    <string name="widget_description">Fortschritt und Restzeit des Creator 5 Pro</string>
+</resources>
