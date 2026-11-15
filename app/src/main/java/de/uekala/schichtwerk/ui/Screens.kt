@@ -75,7 +75,7 @@ import de.uekala.schichtwerk.BuildConfig
 import de.uekala.schichtwerk.MainViewModel
 import de.uekala.schichtwerk.data.Ids
 import de.uekala.schichtwerk.data.Snapshot
-import de.uekala.schichtwerk.data.fmtDuration
+import de.uekala.schichtwerk.data.fmtDurationShort
 import kotlinx.coroutines.delay
 import java.util.Locale
 
@@ -301,9 +301,9 @@ private fun PrintTab(vm: MainViewModel, s: Snapshot) {
         }
         if (s.active) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Tile("Restzeit", s.seconds(Ids.REMAINING)?.let(::fmtDuration) ?: "–", Modifier.weight(1f), hot = true)
+                Tile("Restzeit", s.seconds(Ids.REMAINING)?.let(::fmtDurationShort) ?: "–", Modifier.weight(1f), hot = true)
                 Tile("Fertig um", s.etaClock ?: "–", Modifier.weight(1f))
-                Tile("Läuft seit", s.seconds(Ids.ELAPSED)?.let(::fmtDuration) ?: "–", Modifier.weight(1f))
+                Tile("Läuft seit", s.seconds(Ids.ELAPSED)?.let(::fmtDurationShort) ?: "–", Modifier.weight(1f))
             }
         }
         if (s.error) {
@@ -584,7 +584,7 @@ private fun SetupScreen(vm: MainViewModel) {
             OutlinedTextField(
                 value = url, onValueChange = { url = it },
                 label = { Text("Adresse von Home Assistant") },
-                placeholder = { Text("https://…") },
+                placeholder = { Text("https://… oder http://192.168.x.x:8123") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 modifier = Modifier.fillMaxWidth(),
@@ -597,7 +597,8 @@ private fun SetupScreen(vm: MainViewModel) {
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
-                "Token erstellen: in Home Assistant auf dein Profil → Sicherheit → Langlebige Zugriffstoken. " +
+                "Adresse: die externe https-Adresse oder die IP im Heimnetz – homeassistant.local funktioniert auf Android oft nicht.\n\n" +
+                    "Token erstellen: in Home Assistant auf dein Profil → Sicherheit → Langlebige Zugriffstoken. " +
                     "Es wird verschlüsselt nur auf diesem Gerät gespeichert.",
                 color = TextDim, fontSize = 12.sp,
             )

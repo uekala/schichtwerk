@@ -223,3 +223,11 @@ fun fmtDuration(seconds: Long): String {
         else -> "$m min"
     }
 }
+
+/** Kurzform für schmale Kacheln, z. B. "4:00 h". */
+fun fmtDurationShort(seconds: Long): String {
+    val s = seconds.coerceAtLeast(0)
+    val h = s / 3600
+    val m = (s % 3600) / 60
+    return if (h > 0) "$h:${m.toString().padStart(2, '0')} h" else "$m min"
+}
