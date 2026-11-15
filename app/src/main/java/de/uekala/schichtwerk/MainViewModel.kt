@@ -134,6 +134,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         it.callService("select", "select_option", Ids.FILTER_MODE, JSONObject().put("option", option))
     }
 
+    /** Geschwindigkeit in Prozent; läuft über rest_command.creator_5_pro_speed in Home Assistant. */
+    fun setSpeed(percent: Int) = act("Geschwindigkeit: $percent %") {
+        it.callPlainService("rest_command", "creator_5_pro_speed", JSONObject().put("speed", percent))
+    }
+
     fun updateLive(v: Boolean) {
         live = v
         Prefs.setLive(ctx, v)

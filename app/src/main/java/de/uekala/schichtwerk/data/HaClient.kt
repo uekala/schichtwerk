@@ -44,6 +44,17 @@ class HaClient(baseUrl: String, private val token: String) {
         }
     }
 
+    /** Dienst ohne Ziel-Entität, z. B. ein rest_command mit Variablen. */
+    fun callPlainService(domain: String, service: String, data: JSONObject) {
+        val body = data.toString().toRequestBody(JSON)
+        http.newCall(request("/api/services/$domain/$service").post(body).build()).execute().use { r ->
+            if (r.code == 400 || r.code == 404) {
+                throw IOException("Dienst $domain.$service fehlt in Home Assistant")
+            }
+            if (!r.isSuccessful) fail(r.code)
+        }
+    }
+
     fun press(buttonId: String) = callService("button", "press", buttonId)
 
     fun cameraImage(entityId: String): Bitmap? = image("/api/camera_proxy/$entityId")

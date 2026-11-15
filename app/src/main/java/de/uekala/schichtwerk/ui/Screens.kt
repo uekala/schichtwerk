@@ -335,6 +335,28 @@ private fun PrintTab(vm: MainViewModel, s: Snapshot) {
             Switch(checked = s.on(Ids.LED), onCheckedChange = vm::setLed)
         }
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Geschwindigkeit", color = TextMain)
+            val speed = s.num(Ids.SPEED)?.toInt()
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(50 to "Leise", 100 to "Normal", 150 to "Max").forEach { (pct, label) ->
+                    val selected = speed == pct
+                    OutlinedButton(
+                        onClick = { if (!selected) vm.setSpeed(pct) },
+                        enabled = s.active,
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 4.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (selected) Color(0xFF3A2410) else Color.Transparent,
+                            contentColor = if (selected) Accent else TextDim,
+                        ),
+                    ) { Text("$label · $pct %", maxLines = 1) }
+                }
+            }
+            if (speed != null && speed !in setOf(50, 100, 150)) {
+                Text("Aktuell $speed %", color = TextDim, fontSize = 12.sp)
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Luftfilter", color = TextMain)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 val mode = s.raw(Ids.FILTER_MODE)
