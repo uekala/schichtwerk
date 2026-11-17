@@ -448,7 +448,7 @@ private fun PrintTab(vm: MainViewModel, s: Snapshot) {
 
 @Composable
 private fun MaterialTab(vm: MainViewModel, s: Snapshot) {
-    var editPrice by remember { mutableStateOf(false) }
+    var editPrice by remember { mutableStateOf<Pair<String, String>?>(null) }
     Panel(title = "Materialstation") {
         val activeSlot = s.num(Ids.ACTIVE_SLOT)?.toInt()
         val warn = s.num(Ids.FILAMENT_WARN) ?: 0.0
@@ -501,29 +501,45 @@ private fun MaterialTab(vm: MainViewModel, s: Snapshot) {
 
     Panel(title = "Kosten & Verbrauch") {
         KeyValue("Drucke", s.num(Ids.PRINT_COUNT)?.toInt()?.toString() ?: "–")
-        KeyValue("Gesamtkosten", euro(s, Ids.COST_TOTAL))
+        val strom = s.num(Ids.COST_TOTAL)
+        val filament = s.num(Ids.COST_FILAMENT)
+        KeyValue(
+            "Kosten gesamt",
+            if (strom != null && filament != null) String.format(Locale.GERMANY, "%.2f €", strom + filament) else "–",
+        )
+        KeyValue("davon Strom", euro(s, Ids.COST_TOTAL))
         KeyValue("davon Filament", euro(s, Ids.COST_FILAMENT))
         KeyValue("Strom", s.value(Ids.ENERGY_TOTAL, 2))
         KeyValue("Filament gesamt", s.value(Ids.LIFETIME_FILAMENT, 0))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Filamentpreis", color = TextDim, fontSize = 14.sp, modifier = Modifier.weight(1f))
-            TextButton(onClick = { editPrice = true }) {
-                Text(s.value(Ids.FILAMENT_PRICE, 2) + "  ·  ändern")
+    }
+
+    Panel(title = "Filamentpreise") {
+        Text(
+            "Home Assistant rechnet jeden Druck mit dem Preis des Slots, aus dem das Filament kommt.",
+            color = TextDim, fontSize = 12.sp,
+        )
+        val rows = (1..4).map { "Slot $it" to Ids.slotPrice(it) } + ("Ohne Slot" to Ids.FILAMENT_PRICE)
+        rows.forEach { (label, id) ->
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(label, color = TextDim, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = { editPrice = label to id }) {
+                    Text((s.num(id)?.let { String.format(Locale.GERMANY, "%.2f €/kg", it) } ?: "–") + "  ·  ändern")
+                }
             }
         }
     }
 
-    if (editPrice) {
-        var input by remember {
-            mutableStateOf(s.num(Ids.FILAMENT_PRICE)?.let { String.format(Locale.GERMANY, "%.2f", it) }.orEmpty())
+    editPrice?.let { (label, id) ->
+        var input by remember(id) {
+            mutableStateOf(s.num(id)?.let { String.format(Locale.GERMANY, "%.2f", it) }.orEmpty())
         }
         val parsed = input.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it in 0.0..500.0 }
         AlertDialog(
-            onDismissRequest = { editPrice = false },
-            title = { Text("Filamentpreis") },
+            onDismissRequest = { editPrice = null },
+            title = { Text("Filamentpreis · $label") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Preis in € pro Kilogramm. Home Assistant rechnet damit die Kosten künftiger Drucke.")
+                    Text("Preis in € pro Kilogramm. Gilt für künftige Drucke.")
                     OutlinedTextField(
                         value = input, onValueChange = { input = it },
                         singleLine = true,
@@ -536,11 +552,11 @@ private fun MaterialTab(vm: MainViewModel, s: Snapshot) {
             confirmButton = {
                 TextButton(
                     enabled = parsed != null,
-                    onClick = { editPrice = false; parsed?.let(vm::setFilamentPrice) },
+                    onClick = { editPrice = null; parsed?.let { vm.setFilamentPrice(id, it) } },
                 ) { Text("Speichern") }
             },
             dismissButton = {
-                TextButton(onClick = { editPrice = false }) { Text("Abbrechen") }
+                TextButton(onClick = { editPrice = null }) { Text("Abbrechen") }
             },
         )
     }

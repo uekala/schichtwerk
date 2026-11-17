@@ -58,6 +58,7 @@ object Ids {
     const val THUMBNAIL = "image.creator_5_pro_current_file_thumbnail"
 
     fun slotRest(i: Int) = N + "filament_slot_${i}_rest"
+    fun slotPrice(i: Int) = N + "filamentpreis_slot_$i"
     const val FILAMENT_WARN = N + "filament_warnschwelle"
     const val FILAMENT_JOB = N + "filament_aktueller_druck"
     const val COST_TOTAL = N + "gesamtkosten"
@@ -88,7 +89,7 @@ object Ids {
             )
         )
         for (i in 1..4) {
-            add(tool(i)); add(toolTarget(i)); add(slotRest(i))
+            add(tool(i)); add(toolTarget(i)); add(slotRest(i)); add(slotPrice(i))
         }
         MAINTENANCE.forEach { add(it.second); add(it.third) }
     }
