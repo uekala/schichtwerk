@@ -151,7 +151,7 @@ fun App(vm: MainViewModel) {
                 tab == 2 -> SettingsTab(vm)
                 s == null -> Panel { Text(if (vm.error == null) "Lade Daten …" else "Keine Daten", color = TextDim) }
                 tab == 0 -> PrintTab(vm, s)
-                else -> MaterialTab(s)
+                else -> MaterialTab(vm, s)
             }
         }
     }
@@ -447,7 +447,8 @@ private fun PrintTab(vm: MainViewModel, s: Snapshot) {
 // ---------------------------------------------------------------- Material & Wartung
 
 @Composable
-private fun MaterialTab(s: Snapshot) {
+private fun MaterialTab(vm: MainViewModel, s: Snapshot) {
+    var editPrice by remember { mutableStateOf(false) }
     Panel(title = "Materialstation") {
         val activeSlot = s.num(Ids.ACTIVE_SLOT)?.toInt()
         val warn = s.num(Ids.FILAMENT_WARN) ?: 0.0
@@ -504,7 +505,44 @@ private fun MaterialTab(s: Snapshot) {
         KeyValue("davon Filament", euro(s, Ids.COST_FILAMENT))
         KeyValue("Strom", s.value(Ids.ENERGY_TOTAL, 2))
         KeyValue("Filament gesamt", s.value(Ids.LIFETIME_FILAMENT, 0))
-        KeyValue("Filamentpreis", s.value(Ids.FILAMENT_PRICE, 2))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Filamentpreis", color = TextDim, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            TextButton(onClick = { editPrice = true }) {
+                Text(s.value(Ids.FILAMENT_PRICE, 2) + "  ·  ändern")
+            }
+        }
+    }
+
+    if (editPrice) {
+        var input by remember {
+            mutableStateOf(s.num(Ids.FILAMENT_PRICE)?.let { String.format(Locale.GERMANY, "%.2f", it) }.orEmpty())
+        }
+        val parsed = input.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it in 0.0..500.0 }
+        AlertDialog(
+            onDismissRequest = { editPrice = false },
+            title = { Text("Filamentpreis") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Preis in € pro Kilogramm. Home Assistant rechnet damit die Kosten künftiger Drucke.")
+                    OutlinedTextField(
+                        value = input, onValueChange = { input = it },
+                        singleLine = true,
+                        isError = parsed == null,
+                        suffix = { Text("€/kg") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = parsed != null,
+                    onClick = { editPrice = false; parsed?.let(vm::setFilamentPrice) },
+                ) { Text("Speichern") }
+            },
+            dismissButton = {
+                TextButton(onClick = { editPrice = false }) { Text("Abbrechen") }
+            },
+        )
     }
 }
 
