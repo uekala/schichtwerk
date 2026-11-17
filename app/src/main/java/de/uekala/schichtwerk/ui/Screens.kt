@@ -42,6 +42,8 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -80,6 +82,7 @@ import de.uekala.schichtwerk.data.fmtDurationShort
 import kotlinx.coroutines.delay
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun App(vm: MainViewModel) {
     if (!vm.configured) {
@@ -138,21 +141,26 @@ fun App(vm: MainViewModel) {
             }
         },
     ) { pad ->
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(pad)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+        PullToRefreshBox(
+            isRefreshing = vm.refreshing,
+            onRefresh = vm::pullRefresh,
+            modifier = Modifier.fillMaxSize().padding(pad),
         ) {
-            Header(vm.snap, vm.error)
-            val s = vm.snap
-            when {
-                tab == 2 -> SettingsTab(vm)
-                s == null -> Panel { Text(if (vm.error == null) "Lade Daten …" else "Keine Daten", color = TextDim) }
-                tab == 0 -> PrintTab(vm, s)
-                else -> MaterialTab(vm, s)
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Header(vm.snap, vm.error, vm.lastUpdate)
+                val s = vm.snap
+                when {
+                    tab == 2 -> SettingsTab(vm)
+                    s == null -> Panel { Text(if (vm.error == null) "Lade Daten …" else "Keine Daten", color = TextDim) }
+                    tab == 0 -> PrintTab(vm, s)
+                    else -> MaterialTab(vm, s)
+                }
             }
         }
     }
@@ -211,11 +219,14 @@ private fun KeyValue(label: String, value: String) {
 }
 
 @Composable
-private fun Header(s: Snapshot?, error: String?) {
+private fun Header(s: Snapshot?, error: String?, lastUpdate: Long?) {
     Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text("Schichtwerk", color = TextMain, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Text("Creator 5 Pro", color = TextDim, fontSize = 13.sp)
+            val stand = lastUpdate?.let {
+                " · Stand " + java.text.SimpleDateFormat("HH:mm:ss", Locale.GERMANY).format(java.util.Date(it))
+            }.orEmpty()
+            Text("Creator 5 Pro$stand", color = TextDim, fontSize = 13.sp)
         }
         val (label, color) = when {
             error != null -> "Keine Verbindung" to Bad
@@ -630,6 +641,45 @@ private fun SettingsTab(vm: MainViewModel) {
                 }
             }) { Text("Akku-Optimierung ausschalten") }
         }
+    }
+
+    var editDirect by remember { mutableStateOf(false) }
+    Panel(title = "Drucker direkt") {
+        Text(
+            if (vm.directConfigured) "Eingerichtet. Die Geschwindigkeit wird direkt am Drucker gesetzt – das geht nur im Heimnetz."
+            else "Nötig, um die Druckgeschwindigkeit zu ändern: Home Assistant kann das nicht, die App schickt den Befehl deshalb direkt an den Drucker. Das geht nur im Heimnetz.",
+            color = TextDim, fontSize = 13.sp,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { editDirect = true }) { Text(if (vm.directConfigured) "Ändern" else "Einrichten") }
+            if (vm.directConfigured) {
+                OutlinedButton(onClick = vm::removeDirect) { Text("Entfernen") }
+            }
+        }
+    }
+    if (editDirect) {
+        var ip by remember { mutableStateOf(vm.snap?.raw(Ids.IP).orEmpty()) }
+        var serial by remember { mutableStateOf("") }
+        var code by remember { mutableStateOf("") }
+        val ok = ip.isNotBlank() && serial.isNotBlank() && code.isNotBlank()
+        AlertDialog(
+            onDismissRequest = { editDirect = false },
+            title = { Text("Drucker direkt") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Seriennummer und Prüfcode stehen am Drucker im Menü für den LAN-Modus.")
+                    OutlinedTextField(ip, { ip = it }, label = { Text("IP-Adresse") }, singleLine = true)
+                    OutlinedTextField(serial, { serial = it }, label = { Text("Seriennummer") }, singleLine = true)
+                    OutlinedTextField(code, { code = it }, label = { Text("Prüfcode") }, singleLine = true)
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = ok, onClick = { editDirect = false; vm.saveDirect(ip, serial, code) }) { Text("Speichern") }
+            },
+            dismissButton = {
+                TextButton(onClick = { editDirect = false }) { Text("Abbrechen") }
+            },
+        )
     }
 
     Panel(title = "Verbindung") {

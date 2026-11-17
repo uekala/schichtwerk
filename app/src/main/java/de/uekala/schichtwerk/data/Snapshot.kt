@@ -35,6 +35,7 @@ object Ids {
     const val LIFETIME_FILAMENT = S + "lifetime_filament_usage"
     const val LIFETIME_RUNTIME = S + "lifetime_runtime"
     const val DISK_FREE = S + "free_disk_space"
+    const val IP = S + "ip_address"
     const val ACTIVE_SLOT = "sensor.technikraum_creator_5_pro_active_material_station_slot"
 
     fun tool(i: Int) = S + "tool_${i}_temperature"
@@ -82,7 +83,7 @@ object Ids {
             listOf(
                 STATUS, PROGRESS, FILE, LAYER, LAYERS, ELAPSED, REMAINING, ETA, BED, BED_TARGET,
                 CHAMBER, CHAMBER_TARGET, SPEED, FAN_PART, FAN_CHAMBER, FILAMENT_TYPE, ERROR_CODE,
-                TVOC, FIRMWARE, LIFETIME_FILAMENT, LIFETIME_RUNTIME, DISK_FREE, ACTIVE_SLOT,
+                TVOC, FIRMWARE, LIFETIME_FILAMENT, LIFETIME_RUNTIME, DISK_FREE, IP, ACTIVE_SLOT,
                 PRINTING, PAUSED, ERROR, ONLINE, DOOR, LED, FILTER_MODE,
                 FILAMENT_WARN, FILAMENT_JOB, COST_TOTAL, COST_FILAMENT, ENERGY_TOTAL, PRINT_COUNT,
                 FILAMENT_PRICE, LAST_RESULT, AI_LAST_CHECK,

@@ -13,6 +13,9 @@ import de.uekala.schichtwerk.bg.PrinterWidget
 import de.uekala.schichtwerk.data.HaClient
 import de.uekala.schichtwerk.data.Ids
 import de.uekala.schichtwerk.data.Prefs
+import de.uekala.schichtwerk.data.PrinterAccess
+import de.uekala.schichtwerk.data.PrinterDirect
+import kotlinx.coroutines.CancellationException
 import de.uekala.schichtwerk.data.Snapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -39,6 +42,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var live by mutableStateOf(Prefs.live(app))
         private set
     var alerts by mutableStateOf(Prefs.alerts(app))
+        private set
+
+    var refreshing by mutableStateOf(false)
+        private set
+    var lastUpdate by mutableStateOf<Long?>(null)
+        private set
+    var directConfigured by mutableStateOf(Prefs.printerDirect(app) != null)
         private set
 
     /** Kurze Rückmeldung für die Snackbar. */
@@ -80,6 +90,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         error = null
         live = true
         alerts = true
+        directConfigured = false
+        lastUpdate = null
         configured = false
     }
 
@@ -89,6 +101,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val s = withContext(Dispatchers.IO) { c.snapshot() }
             snap = s
             error = null
+            lastUpdate = System.currentTimeMillis()
             if (s.active && live) PrintMonitorService.start(ctx) else PrinterWidget.render(ctx, s)
             val file = if (s.active) s.file else null
             if (file != thumbFor) {
@@ -97,6 +110,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     runCatching { c.entityImage(Ids.THUMBNAIL) }.getOrNull()
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             error = describe(e)
         }
@@ -135,8 +150,47 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Geschwindigkeit in Prozent; läuft über rest_command.creator_5_pro_speed in Home Assistant. */
+    /** Geschwindigkeit in Prozent: direkt am Drucker, sonst über rest_command in Home Assistant. */
     fun setSpeed(percent: Int) = act("Geschwindigkeit: $percent %") {
-        it.callPlainService("rest_command", "creator_5_pro_speed", JSONObject().put("speed", percent))
+        val direct = Prefs.printerDirect(ctx)
+        if (direct != null) {
+            PrinterDirect.setSpeed(direct, percent)
+        } else {
+            try {
+                it.callPlainService("rest_command", "creator_5_pro_speed", JSONObject().put("speed", percent))
+            } catch (e: java.io.IOException) {
+                if (e.message?.contains("fehlt") == true) {
+                    throw java.io.IOException("erst unter Einstellungen → Drucker direkt einrichten")
+                }
+                throw e
+            }
+        }
+    }
+
+    fun saveDirect(ip: String, serial: String, code: String) {
+        Prefs.setPrinterDirect(ctx, PrinterAccess(ip, serial, code))
+        directConfigured = true
+        message = "Direktzugang gespeichert"
+    }
+
+    fun removeDirect() {
+        Prefs.setPrinterDirect(ctx, null)
+        directConfigured = false
+    }
+
+    /** Wischen nach unten: Home Assistant fragt den Drucker sofort neu ab, danach wird alles neu geladen. */
+    fun pullRefresh() {
+        val c = client ?: return
+        if (refreshing) return
+        refreshing = true
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                runCatching { c.callService("homeassistant", "update_entity", Ids.STATUS) }
+            }
+            refresh()
+            refreshCamera()
+            refreshing = false
+        }
     }
 
     /** Setzt einen Zahlen-Helfer (Preis je Slot, Restmenge einer Spule). */

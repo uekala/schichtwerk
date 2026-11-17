@@ -83,3 +83,41 @@ class HaClient(baseUrl: String, private val token: String) {
         }
     }
 }
+
+data class PrinterAccess(val ip: String, val serial: String, val checkCode: String)
+
+/** Lokale Schnittstelle des Druckers (Port 8898). Nur im Heimnetz oder über VPN erreichbar. */
+object PrinterDirect {
+    private val JSON = "application/json; charset=utf-8".toMediaType()
+    private val http = OkHttpClient.Builder()
+        .connectTimeout(4, TimeUnit.SECONDS)
+        .readTimeout(8, TimeUnit.SECONDS)
+        .callTimeout(10, TimeUnit.SECONDS)
+        .build()
+
+    fun setSpeed(a: PrinterAccess, percent: Int) {
+        val body = JSONObject()
+            .put("serialNumber", a.serial)
+            .put("checkCode", a.checkCode)
+            .put("payload", JSONObject().put("cmd", "printerCtl_cmd").put("args", JSONObject().put("speed", percent)))
+            .toString().toRequestBody(JSON)
+        val req = Request.Builder().url("http://${a.ip}:8898/control").post(body).build()
+        val text = try {
+            http.newCall(req).execute().use { r ->
+                if (!r.isSuccessful) throw IOException("Drucker antwortet mit Fehler ${r.code}")
+                r.body?.string().orEmpty()
+            }
+        } catch (e: java.net.ConnectException) {
+            throw IOException("Drucker nicht erreichbar – nur im Heimnetz möglich")
+        } catch (e: java.net.SocketTimeoutException) {
+            throw IOException("Drucker nicht erreichbar – nur im Heimnetz möglich")
+        } catch (e: java.net.UnknownHostException) {
+            throw IOException("Drucker nicht erreichbar – nur im Heimnetz möglich")
+        }
+        val code = runCatching { JSONObject(text).optInt("code", -1) }.getOrDefault(-1)
+        if (code != 0) {
+            val msg = runCatching { JSONObject(text).optString("message") }.getOrDefault("")
+            throw IOException("Drucker lehnt ab: ${msg.ifBlank { "Code $code" }} – Seriennummer und Prüfcode prüfen")
+        }
+    }
+}

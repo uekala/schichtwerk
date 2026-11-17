@@ -19,6 +19,9 @@ object Prefs {
     private const val K_TOKEN = "token_enc"
     private const val K_LIVE = "live_notification"
     private const val K_ALERTS = "alerts"
+    private const val K_P_IP = "printer_ip"
+    private const val K_P_SERIAL = "printer_serial"
+    private const val K_P_CODE = "printer_code_enc"
 
     fun sp(ctx: Context): SharedPreferences =
         ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -54,6 +57,25 @@ object Prefs {
 
     fun alerts(ctx: Context): Boolean = sp(ctx).getBoolean(K_ALERTS, true)
     fun setAlerts(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean(K_ALERTS, v).apply()
+
+    /** Direktzugang zum Drucker im Heimnetz; der Prüfcode liegt verschlüsselt. */
+    fun printerDirect(ctx: Context): PrinterAccess? {
+        val p = sp(ctx)
+        val ip = p.getString(K_P_IP, null) ?: return null
+        val serial = p.getString(K_P_SERIAL, null) ?: return null
+        val code = p.getString(K_P_CODE, null)?.let { runCatching { decrypt(it) }.getOrNull() } ?: return null
+        return PrinterAccess(ip, serial, code)
+    }
+
+    fun setPrinterDirect(ctx: Context, a: PrinterAccess?) {
+        val e = sp(ctx).edit()
+        if (a == null) {
+            e.remove(K_P_IP).remove(K_P_SERIAL).remove(K_P_CODE)
+        } else {
+            e.putString(K_P_IP, a.ip.trim()).putString(K_P_SERIAL, a.serial.trim()).putString(K_P_CODE, encrypt(a.checkCode.trim()))
+        }
+        e.apply()
+    }
 
     private fun key(): SecretKey {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
