@@ -7,6 +7,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -448,7 +449,7 @@ private fun PrintTab(vm: MainViewModel, s: Snapshot) {
 
 @Composable
 private fun MaterialTab(vm: MainViewModel, s: Snapshot) {
-    var editPrice by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var edit by remember { mutableStateOf<NumberEdit?>(null) }
     Panel(title = "Materialstation") {
         val activeSlot = s.num(Ids.ACTIVE_SLOT)?.toInt()
         val warn = s.num(Ids.FILAMENT_WARN) ?: 0.0
@@ -458,12 +459,19 @@ private fun MaterialTab(vm: MainViewModel, s: Snapshot) {
                 Tile(
                     label = if (activeSlot == i) "Slot $i · aktiv" else "Slot $i",
                     value = rest?.let { "${it.toInt()} g" } ?: "–",
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).clickable {
+                        edit = NumberEdit(
+                            "Restmenge · Slot $i", Ids.slotRest(i), "g", 0,
+                            "Gewicht des Filaments auf der Spule. Home Assistant zieht davon jeden Verbrauch ab.",
+                            preset = "Neue Spule (1000 g)" to 1000.0,
+                        )
+                    },
                     sub = if (rest != null && rest <= warn) "knapp" else null,
                     hot = activeSlot == i,
                 )
             }
         }
+        Text("Slot antippen, um die Restmenge einzutragen, z. B. nach einem Spulenwechsel.", color = TextDim, fontSize = 12.sp)
         KeyValue("Material", s.raw(Ids.FILAMENT_TYPE) ?: "–")
         KeyValue("Aktueller Druck", s.value(Ids.FILAMENT_JOB))
         KeyValue("Warnschwelle", s.value(Ids.FILAMENT_WARN))
@@ -522,45 +530,59 @@ private fun MaterialTab(vm: MainViewModel, s: Snapshot) {
         rows.forEach { (label, id) ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(label, color = TextDim, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                TextButton(onClick = { editPrice = label to id }) {
+                TextButton(onClick = {
+                    edit = NumberEdit("Filamentpreis · $label", id, "€/kg", 2, "Preis in € pro Kilogramm. Gilt für künftige Drucke.")
+                }) {
                     Text((s.num(id)?.let { String.format(Locale.GERMANY, "%.2f €/kg", it) } ?: "–") + "  ·  ändern")
                 }
             }
         }
     }
 
-    editPrice?.let { (label, id) ->
-        var input by remember(id) {
-            mutableStateOf(s.num(id)?.let { String.format(Locale.GERMANY, "%.2f", it) }.orEmpty())
+    edit?.let { e ->
+        var input by remember(e.id) {
+            mutableStateOf(s.num(e.id)?.let { String.format(Locale.GERMANY, "%.${e.decimals}f", it) }.orEmpty())
         }
-        val parsed = input.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it in 0.0..500.0 }
+        val parsed = input.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it in 0.0..10000.0 }
         AlertDialog(
-            onDismissRequest = { editPrice = null },
-            title = { Text("Filamentpreis · $label") },
+            onDismissRequest = { edit = null },
+            title = { Text(e.title) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Preis in € pro Kilogramm. Gilt für künftige Drucke.")
+                    Text(e.hint)
                     OutlinedTextField(
                         value = input, onValueChange = { input = it },
                         singleLine = true,
                         isError = parsed == null,
-                        suffix = { Text("€/kg") },
+                        suffix = { Text(e.unit) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     )
+                    e.preset?.let { (label, value) ->
+                        OutlinedButton(onClick = { edit = null; vm.setNumber(e.id, value) }) { Text(label) }
+                    }
                 }
             },
             confirmButton = {
                 TextButton(
                     enabled = parsed != null,
-                    onClick = { editPrice = null; parsed?.let { vm.setFilamentPrice(id, it) } },
+                    onClick = { edit = null; parsed?.let { vm.setNumber(e.id, it) } },
                 ) { Text("Speichern") }
             },
             dismissButton = {
-                TextButton(onClick = { editPrice = null }) { Text("Abbrechen") }
+                TextButton(onClick = { edit = null }) { Text("Abbrechen") }
             },
         )
     }
 }
+
+private data class NumberEdit(
+    val title: String,
+    val id: String,
+    val unit: String,
+    val decimals: Int,
+    val hint: String,
+    val preset: Pair<String, Double>? = null,
+)
 
 private fun euro(s: Snapshot, id: String): String =
     s.num(id)?.let { String.format(Locale.GERMANY, "%.2f €", it) } ?: "–"

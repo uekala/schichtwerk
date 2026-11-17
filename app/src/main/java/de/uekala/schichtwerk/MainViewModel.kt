@@ -139,8 +139,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         it.callPlainService("rest_command", "creator_5_pro_speed", JSONObject().put("speed", percent))
     }
 
-    fun setFilamentPrice(entityId: String, euroPerKg: Double) = act("Filamentpreis gespeichert") {
-        it.callService("input_number", "set_value", entityId, JSONObject().put("value", euroPerKg))
+    /** Setzt einen Zahlen-Helfer (Preis je Slot, Restmenge einer Spule). */
+    fun setNumber(entityId: String, value: Double) = act("Gespeichert") {
+        it.callService("input_number", "set_value", entityId, JSONObject().put("value", value))
     }
 
     fun updateLive(v: Boolean) {
