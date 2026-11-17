@@ -3,11 +3,16 @@
 Android-App für den FlashForge Creator 5 Pro. Sie spricht ausschließlich mit Home Assistant
 (REST-API) und nutzt die Entitäten, die dort schon vorhanden sind.
 
+<p>
+  <img src="docs/druck.png" alt="Druck-Ansicht mit Fortschritt, Steuerung und Kamera" width="270">
+  <img src="docs/einrichtung.png" alt="Einrichtung mit Adresse und Zugriffstoken" width="270">
+</p>
+
 ## Funktionen
 
 - **Druck:** Fortschritt, Schicht, Restzeit, Druckende, Vorschaubild, Kamera, Temperaturen
-- **Steuerung:** Pause, Fortsetzen, Abbrechen (mit Rückfrage), LED, Luftfilter
-- **Material:** Restmengen der vier Slots, Wartungsintervalle, Kosten und Verbrauch
+- **Steuerung:** Pause, Fortsetzen, Abbrechen (mit Rückfrage), Geschwindigkeit, LED, Luftfilter
+- **Material:** Restmengen und Preise je Slot (in der App änderbar), Wartungsintervalle, Kosten und Verbrauch
 - **Live-Anzeige:** Dauerbenachrichtigung mit Fortschritt, nur solange ein Druck läuft
 - **Alarme:** Fehler, Pause, Druck fertig oder gestoppt
 - **Widget:** Status, Fortschritt und Restzeit auf dem Homescreen
