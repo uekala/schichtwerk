@@ -10,12 +10,15 @@ Android-App für den FlashForge Creator 5 Pro. Sie spricht ausschließlich mit H
 
 ## Funktionen
 
-- **Druck:** Fortschritt, Schicht, Restzeit, Druckende, Vorschaubild, Kamera, Temperaturen
+- **Druck:** Fortschritt, Schicht, Restzeit, Druckende, Vorschaubild, Kamera, Temperaturen mit Verlauf seit Druckstart
 - **Steuerung:** Pause, Fortsetzen, Abbrechen (mit Rückfrage), Geschwindigkeit, LED, Luftfilter
-- **Material:** Restmengen und Preise je Slot (in der App änderbar), Wartungsintervalle, Kosten und Verbrauch
+- **KI-Kontrolle:** Schalter und Schwelle der KI-Fehldruckerkennung des Drucker-Bots
+- **Material:** Spulenfarbe, Material und Restmenge je Slot, Preise je Slot, Wartung abhaken, Kosten und Verbrauch
+- **Verlauf:** alle beendeten Drucke aus dem Kalender „3D-Drucke“ mit Monatssummen
 - **Live-Anzeige:** Dauerbenachrichtigung mit Fortschritt, nur solange ein Druck läuft
-- **Alarme:** Fehler, Pause, Druck fertig oder gestoppt
+- **Alarme:** Fehler, Pause, gestoppt, Druck fertig mit Kamerabild, Spule fast leer
 - **Widget:** Status, Fortschritt und Restzeit auf dem Homescreen
+- **Updates:** Hinweis auf neue Versionen und Installation per Knopfdruck (GitHub-Token mit Leserecht nötig)
 
 ## Einrichten
 
