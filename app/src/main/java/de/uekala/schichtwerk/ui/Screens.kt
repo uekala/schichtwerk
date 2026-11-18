@@ -492,7 +492,13 @@ private fun MaterialTab(vm: MainViewModel, s: Snapshot) {
         }
         Text("Slot antippen, um die Restmenge einzutragen, z. B. nach einem Spulenwechsel.", color = TextDim, fontSize = 12.sp)
         KeyValue("Material", s.raw(Ids.FILAMENT_TYPE) ?: "–")
-        KeyValue("Aktueller Druck", s.value(Ids.FILAMENT_JOB))
+        val jobG = s.num(Ids.FILAMENT_JOB)
+        val jobEur = s.num(Ids.FILAMENT_COST_JOB)
+        KeyValue(
+            "Aktueller Druck",
+            if (jobG == null) "–" else String.format(Locale.GERMANY, "%.0f g", jobG) +
+                (jobEur?.let { String.format(Locale.GERMANY, " · %.2f €", it) } ?: ""),
+        )
         KeyValue("Warnschwelle", s.value(Ids.FILAMENT_WARN))
     }
 

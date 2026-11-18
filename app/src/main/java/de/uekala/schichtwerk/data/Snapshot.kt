@@ -62,6 +62,7 @@ object Ids {
     fun slotPrice(i: Int) = N + "filamentpreis_slot_$i"
     const val FILAMENT_WARN = N + "filament_warnschwelle"
     const val FILAMENT_JOB = N + "filament_aktueller_druck"
+    const val FILAMENT_COST_JOB = N + "filamentkosten_aktueller_druck"
     const val COST_TOTAL = N + "gesamtkosten"
     const val COST_FILAMENT = N + "filamentkosten_gesamt"
     const val ENERGY_TOTAL = N + "gesamtverbrauch"
@@ -85,7 +86,7 @@ object Ids {
                 CHAMBER, CHAMBER_TARGET, SPEED, FAN_PART, FAN_CHAMBER, FILAMENT_TYPE, ERROR_CODE,
                 TVOC, FIRMWARE, LIFETIME_FILAMENT, LIFETIME_RUNTIME, DISK_FREE, IP, ACTIVE_SLOT,
                 PRINTING, PAUSED, ERROR, ONLINE, DOOR, LED, FILTER_MODE,
-                FILAMENT_WARN, FILAMENT_JOB, COST_TOTAL, COST_FILAMENT, ENERGY_TOTAL, PRINT_COUNT,
+                FILAMENT_WARN, FILAMENT_JOB, FILAMENT_COST_JOB, COST_TOTAL, COST_FILAMENT, ENERGY_TOTAL, PRINT_COUNT,
                 FILAMENT_PRICE, LAST_RESULT, AI_LAST_CHECK,
             )
         )
