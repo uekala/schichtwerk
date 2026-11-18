@@ -55,6 +55,44 @@ class HaClient(baseUrl: String, private val token: String) {
         }
     }
 
+    /** Roh-JSON eines GET-Aufrufs. */
+    private fun getText(path: String): String =
+        http.newCall(request(path).build()).execute().use { r ->
+            if (!r.isSuccessful) fail(r.code)
+            r.body?.string().orEmpty()
+        }
+
+    /** Termine eines Kalenders, z. B. calendar.3d_drucke. */
+    fun calendarEvents(calendar: String, start: java.time.OffsetDateTime, end: java.time.OffsetDateTime): org.json.JSONArray {
+        val q = "start=" + enc(start.toString()) + "&end=" + enc(end.toString())
+        return org.json.JSONArray(getText("/api/calendars/$calendar?$q"))
+    }
+
+    /** Verlauf mehrerer Entitäten als Liste von (Zeit in ms, Wert). */
+    fun history(ids: List<String>, start: java.time.OffsetDateTime): Map<String, List<Pair<Long, Float>>> {
+        val path = "/api/history/period/" + enc(start.toString()) +
+            "?filter_entity_id=" + enc(ids.joinToString(",")) + "&minimal_response&no_attributes"
+        val arr = org.json.JSONArray(getText(path))
+        val out = HashMap<String, List<Pair<Long, Float>>>()
+        for (i in 0 until arr.length()) {
+            val list = arr.getJSONArray(i)
+            if (list.length() == 0) continue
+            val id = list.getJSONObject(0).optString("entity_id")
+            val pts = ArrayList<Pair<Long, Float>>(list.length())
+            for (j in 0 until list.length()) {
+                val o = list.getJSONObject(j)
+                val v = o.optString("state").toFloatOrNull() ?: continue
+                val t = o.optString("last_changed").ifBlank { o.optString("last_updated") }
+                val ms = runCatching { java.time.OffsetDateTime.parse(t).toInstant().toEpochMilli() }.getOrNull() ?: continue
+                pts += ms to v
+            }
+            out[id] = pts
+        }
+        return out
+    }
+
+    private fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8")
+
     fun press(buttonId: String) = callService("button", "press", buttonId)
 
     fun cameraImage(entityId: String): Bitmap? = image("/api/camera_proxy/$entityId")

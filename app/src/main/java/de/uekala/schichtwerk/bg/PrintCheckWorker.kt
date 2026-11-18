@@ -26,7 +26,7 @@ class PrintCheckWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker
         val client = Prefs.client(ctx) ?: return Result.success()
         return try {
             val s = withContext(Dispatchers.IO) { client.snapshot() }
-            Monitor.process(ctx, s)
+            Monitor.process(ctx, s, client)
             PrinterWidget.render(ctx, s)
             if (s.active && Prefs.live(ctx)) {
                 // Ohne Ausnahme von der Akku-Optimierung darf der Dienst nicht aus dem

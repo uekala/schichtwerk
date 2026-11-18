@@ -21,7 +21,7 @@ object Notifier {
     const val CH_LIVE = "live"
     const val CH_ALERT = "alerts"
     const val ID_LIVE = 1
-    private const val ID_ALERT = 2
+    const val ID_ALERT = 2
     private const val ACCENT = 0xFFFF7A1A.toInt()
 
     fun ensureChannels(ctx: Context) {
@@ -75,18 +75,33 @@ object Notifier {
 
     fun cancelLive(ctx: Context) = NotificationManagerCompat.from(ctx).cancel(ID_LIVE)
 
-    fun alert(ctx: Context, title: String, text: String) {
+    const val ID_UPDATE = 20
+    fun idSlot(i: Int) = 10 + i
+
+    fun alert(
+        ctx: Context,
+        title: String,
+        text: String,
+        picture: android.graphics.Bitmap? = null,
+        id: Int = ID_ALERT,
+    ) {
         if (!Prefs.alerts(ctx) || !allowed(ctx)) return
+        val style = if (picture != null) {
+            NotificationCompat.BigPictureStyle().bigPicture(picture).setSummaryText(text)
+        } else {
+            NotificationCompat.BigTextStyle().bigText(text)
+        }
         val n = NotificationCompat.Builder(ctx, CH_ALERT)
             .setSmallIcon(R.drawable.ic_layers)
             .setColor(ACCENT)
             .setContentTitle(title)
             .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setStyle(style)
+            .apply { if (picture != null) setLargeIcon(picture) }
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(openApp(ctx))
             .build()
-        NotificationManagerCompat.from(ctx).notify(ID_ALERT, n)
+        NotificationManagerCompat.from(ctx).notify(id, n)
     }
 }

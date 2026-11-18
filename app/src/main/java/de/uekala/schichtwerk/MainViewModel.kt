@@ -14,6 +14,10 @@ import de.uekala.schichtwerk.data.HaClient
 import de.uekala.schichtwerk.data.Ids
 import de.uekala.schichtwerk.data.Prefs
 import de.uekala.schichtwerk.data.PrinterAccess
+import de.uekala.schichtwerk.data.PrintHistory
+import de.uekala.schichtwerk.data.PrintRecord
+import de.uekala.schichtwerk.data.Release
+import de.uekala.schichtwerk.data.Updater
 import de.uekala.schichtwerk.data.PrinterDirect
 import kotlinx.coroutines.CancellationException
 import de.uekala.schichtwerk.data.Snapshot
@@ -51,10 +55,148 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var directConfigured by mutableStateOf(Prefs.printerDirect(app) != null)
         private set
 
+    var history by mutableStateOf<List<PrintRecord>?>(null)
+        private set
+    var historyError by mutableStateOf<String?>(null)
+        private set
+    var temps by mutableStateOf<Map<String, List<Pair<Long, Float>>>?>(null)
+        private set
+    var tempsFrom by mutableStateOf(0L)
+        private set
+    var githubConfigured by mutableStateOf(Prefs.githubToken(app) != null)
+        private set
+    var release by mutableStateOf<Release?>(null)
+        private set
+    var updateBusy by mutableStateOf(false)
+        private set
+
     /** Kurze Rückmeldung für die Snackbar. */
     var message by mutableStateOf<String?>(null)
 
     val baseUrl: String get() = client?.baseUrl.orEmpty()
+
+    init {
+        if (System.currentTimeMillis() - Prefs.lastUpdateCheck(app) > 6 * 3600_000L) checkUpdate(manual = false)
+    }
+
+    // ---------------------------------------------------------- Verlauf
+
+    fun loadHistory() {
+        val c = client ?: return
+        viewModelScope.launch {
+            try {
+                val end = java.time.OffsetDateTime.now().plusDays(1)
+                val arr = withContext(Dispatchers.IO) { c.calendarEvents(PrintHistory.CALENDAR, end.minusDays(400), end) }
+                history = PrintHistory.parse(arr)
+                historyError = null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                historyError = describe(e)
+            }
+        }
+    }
+
+    /** Temperaturen seit Druckstart (höchstens 12 h), sonst der letzten 3 Stunden. */
+    fun loadTemps() {
+        val c = client ?: return
+        val s = snap ?: return
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val startMs = if (s.active) {
+                s.raw(Ids.PRINT_START)?.let {
+                    runCatching {
+                        java.time.LocalDateTime.parse(it.replace(' ', 'T'))
+                            .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                    }.getOrNull()
+                }
+            } else null
+            val from = (startMs ?: (now - 3 * 3600_000L)).coerceAtLeast(now - 12 * 3600_000L)
+            val tool = (1..4).firstOrNull { (s.num(Ids.toolTarget(it)) ?: 0.0) > 0 } ?: 1
+            val ids = listOf(Ids.tool(tool), Ids.BED, Ids.CHAMBER)
+            try {
+                val start = java.time.Instant.ofEpochMilli(from).atOffset(java.time.ZoneOffset.UTC)
+                val data = withContext(Dispatchers.IO) { c.history(ids, start) }
+                temps = mapOf(
+                    "Düse $tool" to data[ids[0]].orEmpty(),
+                    "Bett" to data[ids[1]].orEmpty(),
+                    "Kammer" to data[ids[2]].orEmpty(),
+                )
+                tempsFrom = from
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                message = "Verlauf nicht geladen: ${describe(e)}"
+            }
+        }
+    }
+
+    // ---------------------------------------------------------- Schalter, Wartung
+
+    fun setSwitch(entityId: String, on: Boolean) = act(if (on) "Eingeschaltet" else "Ausgeschaltet") {
+        it.callService("input_boolean", if (on) "turn_on" else "turn_off", entityId)
+    }
+
+    fun setAutomation(entityId: String, on: Boolean) = act(if (on) "Automation eingeschaltet" else "Automation ausgeschaltet") {
+        it.callService("automation", if (on) "turn_on" else "turn_off", entityId)
+    }
+
+    fun maintenanceDone(name: String, lastId: String, hours: Double) = act("$name als erledigt vermerkt") {
+        it.callService("input_number", "set_value", lastId, JSONObject().put("value", Math.round(hours * 100) / 100.0))
+    }
+
+    // ---------------------------------------------------------- Updates
+
+    fun saveGithubToken(token: String) {
+        Prefs.setGithubToken(ctx, token)
+        githubConfigured = token.isNotBlank()
+        if (githubConfigured) checkUpdate(manual = true)
+    }
+
+    fun removeGithubToken() {
+        Prefs.setGithubToken(ctx, null)
+        githubConfigured = false
+        release = null
+    }
+
+    fun checkUpdate(manual: Boolean) {
+        val token = Prefs.githubToken(ctx) ?: return
+        viewModelScope.launch {
+            try {
+                val r = withContext(Dispatchers.IO) { Updater.latest(token) }
+                Prefs.setLastUpdateCheck(ctx, System.currentTimeMillis())
+                release = r?.takeIf { Updater.isNewer(it) }
+                if (manual) message = if (release != null) "Version ${r?.tag} verfügbar" else "Schichtwerk ist aktuell"
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (manual) message = "Update-Prüfung fehlgeschlagen: ${describe(e)}"
+            }
+        }
+    }
+
+    fun installUpdate() {
+        val token = Prefs.githubToken(ctx) ?: return
+        val r = release ?: return
+        if (!Updater.canInstall(ctx)) {
+            message = "Bitte erst „Unbekannte Apps installieren“ für Schichtwerk erlauben"
+            runCatching { Updater.openInstallPermission(ctx) }
+            return
+        }
+        if (updateBusy) return
+        updateBusy = true
+        viewModelScope.launch {
+            try {
+                val f = withContext(Dispatchers.IO) { Updater.download(ctx, token, r) }
+                Updater.install(ctx, f)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                message = "Update fehlgeschlagen: ${describe(e)}"
+            }
+            updateBusy = false
+        }
+    }
 
     fun connect(url: String, token: String) {
         if (url.isBlank() || token.isBlank()) {

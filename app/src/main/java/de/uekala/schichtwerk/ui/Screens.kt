@@ -30,6 +30,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -136,14 +137,18 @@ fun App(vm: MainViewModel) {
                 )
                 NavigationBarItem(
                     selected = tab == 2, onClick = { tab = 2 },
-                    icon = { Icon(Icons.Filled.Settings, contentDescription = null) }, label = { Text("Einstellungen") },
+                    icon = { Icon(Icons.Filled.List, contentDescription = null) }, label = { Text("Verlauf") },
+                )
+                NavigationBarItem(
+                    selected = tab == 3, onClick = { tab = 3 },
+                    icon = { Icon(Icons.Filled.Settings, contentDescription = null) }, label = { Text("Optionen") },
                 )
             }
         },
     ) { pad ->
         PullToRefreshBox(
             isRefreshing = vm.refreshing,
-            onRefresh = vm::pullRefresh,
+            onRefresh = { vm.pullRefresh(); if (tab == 2) vm.loadHistory() },
             modifier = Modifier.fillMaxSize().padding(pad),
         ) {
             Column(
@@ -154,9 +159,23 @@ fun App(vm: MainViewModel) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Header(vm.snap, vm.error, vm.lastUpdate)
+                vm.release?.let { r ->
+                    Panel {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Update verfügbar", color = TextMain, fontWeight = FontWeight.SemiBold)
+                                Text("${r.tag} · installiert ist ${BuildConfig.VERSION_NAME}", color = TextDim, fontSize = 12.sp)
+                            }
+                            Button(onClick = vm::installUpdate, enabled = !vm.updateBusy) {
+                                Text(if (vm.updateBusy) "Lädt …" else "Installieren")
+                            }
+                        }
+                    }
+                }
                 val s = vm.snap
                 when {
-                    tab == 2 -> SettingsTab(vm)
+                    tab == 3 -> SettingsTab(vm)
+                    tab == 2 -> HistoryTab(vm)
                     s == null -> Panel { Text(if (vm.error == null) "Lade Daten …" else "Keine Daten", color = TextDim) }
                     tab == 0 -> PrintTab(vm, s)
                     else -> MaterialTab(vm, s)
@@ -169,7 +188,7 @@ fun App(vm: MainViewModel) {
 // ---------------------------------------------------------------- Bausteine
 
 @Composable
-private fun Panel(
+internal fun Panel(
     modifier: Modifier = Modifier,
     title: String? = null,
     content: @Composable () -> Unit,
@@ -193,14 +212,27 @@ private fun Panel(
 }
 
 @Composable
-private fun Tile(label: String, value: String, modifier: Modifier = Modifier, sub: String? = null, hot: Boolean = false) {
+internal fun Tile(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    sub: String? = null,
+    hot: Boolean = false,
+    dot: Color? = null,
+) {
     Column(
         modifier
             .clip(RoundedCornerShape(14.dp))
             .background(SurfaceHigh)
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
-        Text(label, color = TextDim, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (dot != null) {
+                Box(Modifier.size(10.dp).clip(CircleShape).background(dot))
+                Spacer(Modifier.width(5.dp))
+            }
+            Text(label, color = TextDim, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
         Text(
             value,
             color = if (hot) Accent else TextMain,
@@ -211,7 +243,23 @@ private fun Tile(label: String, value: String, modifier: Modifier = Modifier, su
 }
 
 @Composable
-private fun KeyValue(label: String, value: String) {
+private fun SwitchRow(title: String, sub: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = TextMain)
+            Text(sub, color = TextDim, fontSize = 12.sp)
+        }
+        Switch(checked = checked, onCheckedChange = onChange)
+    }
+}
+
+/** "#RRGGBB" aus Home Assistant in eine Farbe; null bei unbekanntem Format. */
+private fun parseColor(hex: String): Color? = runCatching {
+    Color(android.graphics.Color.parseColor(if (hex.startsWith("#")) hex else "#$hex"))
+}.getOrNull()
+
+@Composable
+internal fun KeyValue(label: String, value: String) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(label, color = TextDim, fontSize = 14.sp, modifier = Modifier.weight(1f))
         Text(value, color = TextMain, fontSize = 14.sp, fontWeight = FontWeight.Medium)
@@ -422,6 +470,41 @@ private fun PrintTab(vm: MainViewModel, s: Snapshot) {
         }
     }
 
+    // KI-Kontrolle des Drucker-Bots
+    Panel(title = "KI-Kontrolle") {
+        val autoOn = s.on(Ids.AI_AUTOMATION)
+        if (!autoOn) {
+            Text(
+                "Die Automation „Drucker-Bot – KI-Druckkontrolle“ ist in Home Assistant ausgeschaltet. Die Schalter wirken erst, wenn sie läuft.",
+                color = Warn, fontSize = 13.sp,
+            )
+            OutlinedButton(onClick = { vm.setAutomation(Ids.AI_AUTOMATION, true) }) { Text("Automation einschalten") }
+        }
+        SwitchRow("KI prüft Kamerabilder", "Meldet Verdacht auf Fehldruck", s.on(Ids.AI_ON)) { vm.setSwitch(Ids.AI_ON, it) }
+        SwitchRow("KI darf pausieren", "Hält den Druck bei sicherem Fehldruck an", s.on(Ids.AI_PAUSE)) { vm.setSwitch(Ids.AI_PAUSE, it) }
+        SwitchRow("Stumm für diesen Druck", "Keine KI-Meldungen bis zum Druckende", s.on(Ids.AI_MUTE)) { vm.setSwitch(Ids.AI_MUTE, it) }
+        val th = s.num(Ids.AI_THRESHOLD)
+        if (th != null) {
+            val min = s.attrNum(Ids.AI_THRESHOLD, "min") ?: 50.0
+            val max = s.attrNum(Ids.AI_THRESHOLD, "max") ?: 100.0
+            val step = s.attrNum(Ids.AI_THRESHOLD, "step") ?: 5.0
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                KeyValue("Schwelle für Verdacht", "${th.toInt()} %")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { vm.setNumber(Ids.AI_THRESHOLD, (th - step).coerceAtLeast(min)) },
+                        enabled = th > min, modifier = Modifier.weight(1f),
+                    ) { Text("− ${step.toInt()}") }
+                    OutlinedButton(
+                        onClick = { vm.setNumber(Ids.AI_THRESHOLD, (th + step).coerceAtMost(max)) },
+                        enabled = th < max, modifier = Modifier.weight(1f),
+                    ) { Text("+ ${step.toInt()}") }
+                }
+                Text("Höher = die KI meldet nur, wenn sie sich sicherer ist.", color = TextDim, fontSize = 12.sp)
+            }
+        }
+    }
+
     // Temperaturen
     Panel(title = "Temperaturen") {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -435,6 +518,22 @@ private fun PrintTab(vm: MainViewModel, s: Snapshot) {
                 val t = temp(s, Ids.tool(i), Ids.toolTarget(i))
                 Tile("Düse $i", t.first, Modifier.weight(1f), sub = t.second, hot = t.second != null)
             }
+        }
+        var showChart by rememberSaveable { mutableStateOf(false) }
+        TextButton(onClick = {
+            showChart = !showChart
+            if (showChart) vm.loadTemps()
+        }) { Text(if (showChart) "Verlauf ausblenden" else if (s.active) "Verlauf seit Druckstart" else "Verlauf der letzten 3 Stunden") }
+        if (showChart) {
+            LaunchedEffect(Unit) {
+                while (true) {
+                    delay(60_000)
+                    vm.loadTemps()
+                }
+            }
+            val data = vm.temps
+            if (data == null) Text("Lade Verlauf …", color = TextDim, fontSize = 13.sp)
+            else TempChart(data, vm.tempsFrom)
         }
     }
 
@@ -475,9 +574,13 @@ private fun MaterialTab(vm: MainViewModel, s: Snapshot) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for (i in 1..4) {
                 val rest = s.num(Ids.slotRest(i))
+                val img = Ids.slotImage(i)
+                val loaded = s.attr(img, "has_filament") != false
+                val material = s.attrStr(img, "material")
                 Tile(
                     label = if (activeSlot == i) "Slot $i · aktiv" else "Slot $i",
-                    value = rest?.let { "${it.toInt()} g" } ?: "–",
+                    value = if (!loaded) "leer" else rest?.let { "${it.toInt()} g" } ?: "–",
+                    dot = if (loaded) s.attrStr(img, "material_color")?.let(::parseColor) else null,
                     modifier = Modifier.weight(1f).clickable {
                         edit = NumberEdit(
                             "Restmenge · Slot $i", Ids.slotRest(i), "g", 0,
@@ -485,7 +588,11 @@ private fun MaterialTab(vm: MainViewModel, s: Snapshot) {
                             preset = "Neue Spule (1000 g)" to 1000.0,
                         )
                     },
-                    sub = if (rest != null && rest <= warn) "knapp" else null,
+                    sub = when {
+                        !loaded -> null
+                        rest != null && rest <= warn -> listOfNotNull(material, "knapp").joinToString(" · ")
+                        else -> material
+                    },
                     hot = activeSlot == i,
                 )
             }
@@ -502,6 +609,7 @@ private fun MaterialTab(vm: MainViewModel, s: Snapshot) {
         KeyValue("Warnschwelle", s.value(Ids.FILAMENT_WARN))
     }
 
+    var confirmMaint by remember { mutableStateOf<Pair<String, String>?>(null) }
     Panel(title = "Wartung") {
         val hours = s.lifetimeHours
         Ids.MAINTENANCE.forEach { (name, lastId, intervalId) ->
@@ -517,7 +625,14 @@ private fun MaterialTab(vm: MainViewModel, s: Snapshot) {
                     else -> Good
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    KeyValue(name, if (left > 0) "noch ${left.toInt()} h" else "fällig seit ${(-left).toInt()} h")
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(name, color = TextDim, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        Text(
+                            if (left > 0) "noch ${left.toInt()} h" else "fällig seit ${(-left).toInt()} h",
+                            color = TextMain, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                        )
+                        TextButton(onClick = { confirmMaint = name to lastId }) { Text("erledigt") }
+                    }
                     LinearProgressIndicator(
                         progress = { frac },
                         modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
@@ -530,6 +645,26 @@ private fun MaterialTab(vm: MainViewModel, s: Snapshot) {
             }
         }
         KeyValue("Betriebsdauer", hours?.let { "${it.toInt()} h" } ?: "–")
+    }
+    confirmMaint?.let { (name, lastId) ->
+        val hours = s.lifetimeHours
+        AlertDialog(
+            onDismissRequest = { confirmMaint = null },
+            title = { Text("$name erledigt?") },
+            text = {
+                Text(
+                    if (hours != null) "Der Zähler für „$name“ startet bei ${hours.toInt()} Betriebsstunden neu."
+                    else "Die Betriebsstunden des Druckers sind gerade nicht verfügbar."
+                )
+            },
+            confirmButton = {
+                TextButton(enabled = hours != null, onClick = {
+                    confirmMaint = null
+                    hours?.let { vm.maintenanceDone(name, lastId, it) }
+                }) { Text("Erledigt") }
+            },
+            dismissButton = { TextButton(onClick = { confirmMaint = null }) { Text("Abbrechen") } },
+        )
     }
 
     Panel(title = "Kosten & Verbrauch") {
@@ -693,6 +828,46 @@ private fun SettingsTab(vm: MainViewModel) {
             dismissButton = {
                 TextButton(onClick = { editDirect = false }) { Text("Abbrechen") }
             },
+        )
+    }
+
+    var editGh by remember { mutableStateOf(false) }
+    Panel(title = "Updates") {
+        Text(
+            if (vm.githubConfigured) "Die App prüft alle 6 Stunden, ob es eine neue Version gibt, und installiert sie auf Knopfdruck."
+            else "Für Update-Hinweise braucht die App ein GitHub-Token mit Leserecht auf das Repo schichtwerk.",
+            color = TextDim, fontSize = 13.sp,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (vm.githubConfigured) {
+                Button(onClick = { vm.checkUpdate(manual = true) }) { Text("Jetzt prüfen") }
+                OutlinedButton(onClick = vm::removeGithubToken) { Text("Token entfernen") }
+            } else {
+                Button(onClick = { editGh = true }) { Text("Token eintragen") }
+            }
+        }
+    }
+    if (editGh) {
+        var token by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { editGh = false },
+            title = { Text("GitHub-Token") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Auf github.com: Settings → Developer settings → Fine-grained tokens → Generate. " +
+                            "Repository: nur schichtwerk, Berechtigung „Contents: Read-only“. Das Token wird verschlüsselt auf dem Gerät gespeichert."
+                    )
+                    OutlinedTextField(
+                        token, { token = it }, label = { Text("Token") }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = token.isNotBlank(), onClick = { editGh = false; vm.saveGithubToken(token) }) { Text("Speichern") }
+            },
+            dismissButton = { TextButton(onClick = { editGh = false }) { Text("Abbrechen") } },
         )
     }
 

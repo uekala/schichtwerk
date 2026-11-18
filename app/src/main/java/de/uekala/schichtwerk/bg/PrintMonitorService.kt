@@ -52,7 +52,7 @@ class PrintMonitorService : Service() {
             if (client == null || !Prefs.live(this)) break
             try {
                 val s = client.snapshot()
-                Monitor.process(this, s)
+                Monitor.process(this, s, client)
                 PrinterWidget.render(this, s)
                 if (s.active) {
                     idle = 0

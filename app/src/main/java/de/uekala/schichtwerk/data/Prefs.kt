@@ -20,6 +20,8 @@ object Prefs {
     private const val K_LIVE = "live_notification"
     private const val K_ALERTS = "alerts"
     private const val K_P_IP = "printer_ip"
+    private const val K_GH_TOKEN = "github_token_enc"
+    private const val K_UPDATE_CHECK = "update_last_check"
     private const val K_P_SERIAL = "printer_serial"
     private const val K_P_CODE = "printer_code_enc"
 
@@ -76,6 +78,18 @@ object Prefs {
         }
         e.apply()
     }
+
+    fun githubToken(ctx: Context): String? =
+        sp(ctx).getString(K_GH_TOKEN, null)?.let { runCatching { decrypt(it) }.getOrNull() }
+
+    fun setGithubToken(ctx: Context, token: String?) {
+        val e = sp(ctx).edit()
+        if (token.isNullOrBlank()) e.remove(K_GH_TOKEN) else e.putString(K_GH_TOKEN, encrypt(token.trim()))
+        e.apply()
+    }
+
+    fun lastUpdateCheck(ctx: Context): Long = sp(ctx).getLong(K_UPDATE_CHECK, 0)
+    fun setLastUpdateCheck(ctx: Context, t: Long) = sp(ctx).edit().putLong(K_UPDATE_CHECK, t).apply()
 
     private fun key(): SecretKey {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }

@@ -75,6 +75,15 @@ object Ids {
         Triple("Schmieren", N + "wartung_schmieren_zuletzt", N + "wartung_schmieren_intervall"),
     )
 
+    fun slotImage(i: Int) = "image.technikraum_creator_5_pro_material_station_slot_$i"
+    const val PRINT_START = "input_datetime.creator_5_pro_druckstartzeit"
+
+    const val AI_ON = "input_boolean.drucker_bot_ki_kontrolle"
+    const val AI_PAUSE = "input_boolean.drucker_bot_ki_darf_pausieren"
+    const val AI_MUTE = "input_boolean.drucker_bot_ki_stumm_fur_diesen_druck"
+    const val AI_THRESHOLD = "input_number.drucker_bot_ki_schwelle"
+    const val AI_AUTOMATION = "automation.drucker_bot_ki_druckkontrolle"
+
     const val LAST_RESULT = "input_text.creator_5_pro_letztes_druckergebnis"
     const val AI_LAST_CHECK = "input_text.drucker_bot_ki_letzte_prufung"
 
@@ -87,17 +96,25 @@ object Ids {
                 TVOC, FIRMWARE, LIFETIME_FILAMENT, LIFETIME_RUNTIME, DISK_FREE, IP, ACTIVE_SLOT,
                 PRINTING, PAUSED, ERROR, ONLINE, DOOR, LED, FILTER_MODE,
                 FILAMENT_WARN, FILAMENT_JOB, FILAMENT_COST_JOB, COST_TOTAL, COST_FILAMENT, ENERGY_TOTAL, PRINT_COUNT,
-                FILAMENT_PRICE, LAST_RESULT, AI_LAST_CHECK,
+                FILAMENT_PRICE, LAST_RESULT, AI_LAST_CHECK, PRINT_START,
+                AI_ON, AI_PAUSE, AI_MUTE, AI_THRESHOLD, AI_AUTOMATION,
             )
         )
+        for (i in 1..4) add(slotImage(i))
         for (i in 1..4) {
             add(tool(i)); add(toolTarget(i)); add(slotRest(i)); add(slotPrice(i))
         }
         MAINTENANCE.forEach { add(it.second); add(it.third) }
     }
+
+    /** Attribute, die zusätzlich zum Zustand gebraucht werden. */
+    val ATTRS: Map<String, List<String>> = buildMap {
+        for (i in 1..4) put(slotImage(i), listOf("material", "material_color", "has_filament"))
+        put(AI_THRESHOLD, listOf("min", "max", "step"))
+    }
 }
 
-data class Ent(val state: String, val unit: String?)
+data class Ent(val state: String, val unit: String?, val attrs: Map<String, Any?> = emptyMap())
 
 /** Momentaufnahme aller Drucker-Entitäten. */
 class Snapshot(private val m: Map<String, Ent>) {
@@ -108,6 +125,9 @@ class Snapshot(private val m: Map<String, Ent>) {
     fun num(id: String): Double? = raw(id)?.toDoubleOrNull()
     fun on(id: String): Boolean = m[id]?.state == "on"
     fun unit(id: String): String = m[id]?.unit.orEmpty()
+    fun attr(id: String, key: String): Any? = m[id]?.attrs?.get(key)
+    fun attrStr(id: String, key: String): String? = (attr(id, key) as? String)?.takeIf { it.isNotBlank() }
+    fun attrNum(id: String, key: String): Double? = (attr(id, key) as? Number)?.toDouble()
 
     /** Wert mit Einheit, z. B. "150 g". */
     fun value(id: String, decimals: Int = 0): String {
@@ -197,9 +217,13 @@ class Snapshot(private val m: Map<String, Ent>) {
         val TEMPLATE: String = buildString {
             append("{% set ids = [")
             append(Ids.ALL.joinToString(",") { "'$it'" })
-            append("] %}{% set ns = namespace(d={}) %}{% for i in ids %}")
-            append("{% set ns.d = dict(ns.d, **{i: {'s': states(i), 'u': state_attr(i, 'unit_of_measurement')}}) %}")
-            append("{% endfor %}{{ ns.d | tojson }}")
+            append("] %}{% set aids = {")
+            append(Ids.ATTRS.entries.joinToString(",") { (k, v) -> "'$k': [" + v.joinToString(",") { "'$it'" } + "]" })
+            append("} %}{% set ns = namespace(d={}) %}{% for i in ids %}")
+            append("{% set e = {'s': states(i), 'u': state_attr(i, 'unit_of_measurement')} %}")
+            append("{% if i in aids %}{% set na = namespace(a={}) %}{% for k in aids[i] %}")
+            append("{% set na.a = dict(na.a, **{k: state_attr(i, k)}) %}{% endfor %}{% set e = dict(e, a=na.a) %}{% endif %}")
+            append("{% set ns.d = dict(ns.d, **{i: e}) %}{% endfor %}{{ ns.d | tojson }}")
         }
 
         fun parse(json: String): Snapshot {
@@ -207,9 +231,13 @@ class Snapshot(private val m: Map<String, Ent>) {
             val map = HashMap<String, Ent>()
             for (k in o.keys()) {
                 val e = o.getJSONObject(k)
+                val a = e.optJSONObject("a")
+                val attrs = HashMap<String, Any?>()
+                if (a != null) for (ak in a.keys()) attrs[ak] = if (a.isNull(ak)) null else a.get(ak)
                 map[k] = Ent(
                     state = e.optString("s", "unknown"),
                     unit = if (e.isNull("u")) null else e.optString("u"),
+                    attrs = attrs,
                 )
             }
             return Snapshot(map)
