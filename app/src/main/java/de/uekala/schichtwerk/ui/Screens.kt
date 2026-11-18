@@ -350,8 +350,16 @@ private fun PrintTab(vm: MainViewModel, s: Snapshot) {
             Text("Geschwindigkeit", color = TextMain)
             val speed = s.num(Ids.SPEED)?.toInt()
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Der Drucker meldet seine Stufen nicht immer mit dem Wert zurück, der gesetzt wurde
+                // (Maximalstufe z. B. als 140 %), deshalb wird die nächstliegende Stufe markiert.
+                val current = when {
+                    speed == null -> null
+                    speed < 75 -> 50
+                    speed < 125 -> 100
+                    else -> 150
+                }
                 listOf(50 to "Leise", 100 to "Normal", 150 to "Max").forEach { (pct, label) ->
-                    val selected = speed == pct
+                    val selected = current == pct
                     OutlinedButton(
                         onClick = { if (!selected) vm.setSpeed(pct) },
                         enabled = s.active,
@@ -361,11 +369,11 @@ private fun PrintTab(vm: MainViewModel, s: Snapshot) {
                             containerColor = if (selected) Color(0xFF3A2410) else Color.Transparent,
                             contentColor = if (selected) Accent else TextDim,
                         ),
-                    ) { Text("$label · $pct %", maxLines = 1) }
+                    ) { Text(label, maxLines = 1) }
                 }
             }
-            if (speed != null && speed !in setOf(50, 100, 150)) {
-                Text("Aktuell $speed %", color = TextDim, fontSize = 12.sp)
+            if (speed != null) {
+                Text("Drucker meldet $speed %", color = TextDim, fontSize = 12.sp)
             }
         }
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
