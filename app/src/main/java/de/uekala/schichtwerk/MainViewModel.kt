@@ -74,6 +74,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var message by mutableStateOf<String?>(null)
 
     val baseUrl: String get() = client?.baseUrl.orEmpty()
+    val usingRemote: Boolean get() = client?.usingRemote == true
+    val homeUrl: String get() = Prefs.baseUrl(ctx).orEmpty()
+    var remoteUrl by mutableStateOf(Prefs.remoteUrl(app))
+        private set
+
+    /** Zweite Adresse für unterwegs speichern; die App wechselt automatisch, wenn eine nicht erreichbar ist. */
+    fun saveRemoteUrl(url: String) {
+        Prefs.setRemoteUrl(ctx, url)
+        remoteUrl = Prefs.remoteUrl(ctx)
+        client = Prefs.client(ctx)
+        message = if (url.isBlank()) "Adresse für unterwegs entfernt" else "Adresse für unterwegs gespeichert"
+        pullRefresh()
+    }
 
     init {
         if (System.currentTimeMillis() - Prefs.lastUpdateCheck(app) > 6 * 3600_000L) checkUpdate(manual = false)
@@ -181,7 +194,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
 
-    fun connect(url: String, token: String) {
+    fun connect(url: String, token: String, remote: String = "") {
         if (url.isBlank() || token.isBlank()) {
             error = "Adresse und Token ausfüllen"
             return
@@ -190,9 +203,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         error = null
         viewModelScope.launch {
             try {
-                val c = HaClient(url, token.trim())
+                val c = HaClient(url, token.trim(), remote)
                 val s = withContext(Dispatchers.IO) { c.snapshot() }
                 Prefs.save(ctx, url, token)
+                Prefs.setRemoteUrl(ctx, remote)
+                remoteUrl = Prefs.remoteUrl(ctx)
                 client = c
                 snap = s
                 configured = true

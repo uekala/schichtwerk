@@ -870,13 +870,45 @@ private fun SettingsTab(vm: MainViewModel) {
         )
     }
 
+    var editRemote by remember { mutableStateOf(false) }
     Panel(title = "Verbindung") {
-        KeyValue("Home Assistant", vm.baseUrl.removePrefix("https://").removePrefix("http://"))
+        fun short(u: String) = u.removePrefix("https://").removePrefix("http://")
+        KeyValue("Zuhause", short(vm.homeUrl))
+        KeyValue("Unterwegs", vm.remoteUrl?.let(::short) ?: "nicht eingetragen")
+        KeyValue("Aktiv", if (vm.usingRemote) "Unterwegs" else "Zuhause")
+        Text(
+            "Ist eine Adresse nicht erreichbar, wechselt die App automatisch zur anderen – z. B. wenn das Handy im Mobilfunk ist und die Heimnetz-IP nicht erreicht.",
+            color = TextDim, fontSize = 12.sp,
+        )
+        TextButton(onClick = { editRemote = true }) {
+            Text(if (vm.remoteUrl == null) "Adresse für unterwegs eintragen" else "Adresse für unterwegs ändern")
+        }
         KeyValue("App-Version", BuildConfig.VERSION_NAME)
         OutlinedButton(
             onClick = { confirmDisconnect = true },
             colors = ButtonDefaults.outlinedButtonColors(contentColor = Bad),
         ) { Text("Verbindung trennen") }
+    }
+
+    if (editRemote) {
+        var url by remember { mutableStateOf(vm.remoteUrl.orEmpty()) }
+        AlertDialog(
+            onDismissRequest = { editRemote = false },
+            title = { Text("Adresse für unterwegs") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Die Adresse, unter der du Home Assistant außerhalb des WLANs erreichst – dieselbe wie in der Home-Assistant-App als „Externe URL“, z. B. deine Tailscale- oder Nabu-Casa-Adresse. Leer lassen zum Entfernen."
+                    )
+                    OutlinedTextField(
+                        url, { url = it }, label = { Text("https://…") }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { editRemote = false; vm.saveRemoteUrl(url.trim()) }) { Text("Speichern") } },
+            dismissButton = { TextButton(onClick = { editRemote = false }) { Text("Abbrechen") } },
+        )
     }
 
     if (confirmDisconnect) {
@@ -900,6 +932,7 @@ private fun SettingsTab(vm: MainViewModel) {
 private fun SetupScreen(vm: MainViewModel) {
     var url by rememberSaveable { mutableStateOf("") }
     var token by rememberSaveable { mutableStateOf("") }
+    var remote by rememberSaveable { mutableStateOf("") }
 
     Scaffold(containerColor = Bg) { pad ->
         Column(
@@ -926,6 +959,14 @@ private fun SetupScreen(vm: MainViewModel) {
                 modifier = Modifier.fillMaxWidth(),
             )
             OutlinedTextField(
+                value = remote, onValueChange = { remote = it },
+                label = { Text("Adresse für unterwegs (optional)") },
+                placeholder = { Text("z. B. Tailscale- oder Nabu-Casa-Adresse") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
                 value = token, onValueChange = { token = it },
                 label = { Text("Langlebiges Zugriffstoken") },
                 singleLine = true,
@@ -940,7 +981,7 @@ private fun SetupScreen(vm: MainViewModel) {
             )
             vm.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             Button(
-                onClick = { vm.connect(url, token) },
+                onClick = { vm.connect(url, token, remote.trim()) },
                 enabled = !vm.connecting,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(if (vm.connecting) "Verbinde …" else "Verbinden") }

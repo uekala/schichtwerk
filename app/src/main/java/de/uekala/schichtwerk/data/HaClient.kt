@@ -11,12 +11,37 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /** Schlanker Zugriff auf die REST-API von Home Assistant. Alle Aufrufe blockieren – nur im IO-Dispatcher nutzen. */
-class HaClient(baseUrl: String, private val token: String) {
+class HaClient(home: String, private val token: String, remote: String? = null) {
 
-    val baseUrl: String = normalize(baseUrl)
+    private val urls: List<String> = listOfNotNull(normalize(home), remote?.takeIf { it.isNotBlank() }?.let(::normalize)).distinct()
+
+    /** Adresse, über die zuletzt eine Verbindung geklappt hat. */
+    val baseUrl: String get() = working[urls.first()]?.takeIf { it in urls } ?: urls.first()
+
+    /** True, wenn gerade die Adresse für unterwegs benutzt wird. */
+    val usingRemote: Boolean get() = urls.size > 1 && baseUrl == urls[1]
 
     private fun request(path: String): Request.Builder =
         Request.Builder().url(baseUrl + path).header("Authorization", "Bearer $token")
+
+    /**
+     * Führt eine Anfrage aus; ist die aktuelle Adresse nicht erreichbar (z. B. Heimnetz-IP im
+     * Mobilfunk), wird einmal mit der anderen Adresse wiederholt und diese gemerkt.
+     */
+    private fun exec(make: () -> Request): okhttp3.Response {
+        try {
+            return http.newCall(make()).execute()
+        } catch (e: IOException) {
+            if (urls.size < 2 || !unreachable(e)) throw e
+            working[urls.first()] = urls.first { it != baseUrl }
+            return http.newCall(make()).execute()
+        }
+    }
+
+    private fun unreachable(e: IOException): Boolean =
+        e is java.net.ConnectException || e is java.net.SocketTimeoutException ||
+            e is java.net.UnknownHostException || e is java.net.NoRouteToHostException ||
+            e is javax.net.ssl.SSLException || e is java.io.InterruptedIOException
 
     private fun fail(code: Int): Nothing = throw IOException(
         when (code) {
@@ -30,7 +55,7 @@ class HaClient(baseUrl: String, private val token: String) {
     /** Liest alle Drucker-Entitäten mit einer einzigen Anfrage. */
     fun snapshot(): Snapshot {
         val body = JSONObject().put("template", Snapshot.TEMPLATE).toString().toRequestBody(JSON)
-        http.newCall(request("/api/template").post(body).build()).execute().use { r ->
+        exec { request("/api/template").post(body).build() }.use { r ->
             if (!r.isSuccessful) fail(r.code)
             return Snapshot.parse(r.body?.string().orEmpty())
         }
@@ -39,7 +64,7 @@ class HaClient(baseUrl: String, private val token: String) {
     fun callService(domain: String, service: String, entityId: String, extra: JSONObject? = null) {
         val data = (extra ?: JSONObject()).put("entity_id", entityId)
         val body = data.toString().toRequestBody(JSON)
-        http.newCall(request("/api/services/$domain/$service").post(body).build()).execute().use { r ->
+        exec { request("/api/services/$domain/$service").post(body).build() }.use { r ->
             if (!r.isSuccessful) fail(r.code)
         }
     }
@@ -47,7 +72,7 @@ class HaClient(baseUrl: String, private val token: String) {
     /** Dienst ohne Ziel-Entität, z. B. ein rest_command mit Variablen. */
     fun callPlainService(domain: String, service: String, data: JSONObject) {
         val body = data.toString().toRequestBody(JSON)
-        http.newCall(request("/api/services/$domain/$service").post(body).build()).execute().use { r ->
+        exec { request("/api/services/$domain/$service").post(body).build() }.use { r ->
             if (r.code == 400 || r.code == 404) {
                 throw IOException("Dienst $domain.$service fehlt in Home Assistant")
             }
@@ -57,7 +82,7 @@ class HaClient(baseUrl: String, private val token: String) {
 
     /** Roh-JSON eines GET-Aufrufs. */
     private fun getText(path: String): String =
-        http.newCall(request(path).build()).execute().use { r ->
+        exec { request(path).build() }.use { r ->
             if (!r.isSuccessful) fail(r.code)
             r.body?.string().orEmpty()
         }
@@ -99,7 +124,7 @@ class HaClient(baseUrl: String, private val token: String) {
     fun entityImage(entityId: String): Bitmap? = image("/api/image_proxy/$entityId")
 
     private fun image(path: String): Bitmap? =
-        http.newCall(request(path).build()).execute().use { r ->
+        exec { request(path).build() }.use { r ->
             if (!r.isSuccessful) return null
             val bytes = r.body?.bytes() ?: return null
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
@@ -107,9 +132,10 @@ class HaClient(baseUrl: String, private val token: String) {
 
     companion object {
         private val JSON = "application/json; charset=utf-8".toMediaType()
+        private val working = java.util.concurrent.ConcurrentHashMap<String, String>()
 
         private val http: OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(8, TimeUnit.SECONDS)
+            .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .callTimeout(20, TimeUnit.SECONDS)
             .build()

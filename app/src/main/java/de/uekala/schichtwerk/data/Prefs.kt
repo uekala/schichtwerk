@@ -16,6 +16,7 @@ object Prefs {
     private const val FILE = "schichtwerk"
     private const val KEY_ALIAS = "schichtwerk_token_key"
     private const val K_URL = "base_url"
+    private const val K_URL_REMOTE = "remote_url"
     private const val K_TOKEN = "token_enc"
     private const val K_LIVE = "live_notification"
     private const val K_ALERTS = "alerts"
@@ -29,6 +30,13 @@ object Prefs {
         ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
     fun baseUrl(ctx: Context): String? = sp(ctx).getString(K_URL, null)
+    fun remoteUrl(ctx: Context): String? = sp(ctx).getString(K_URL_REMOTE, null)
+
+    fun setRemoteUrl(ctx: Context, url: String?) {
+        val e = sp(ctx).edit()
+        if (url.isNullOrBlank()) e.remove(K_URL_REMOTE) else e.putString(K_URL_REMOTE, HaClient.normalize(url))
+        e.apply()
+    }
 
     fun token(ctx: Context): String? {
         val enc = sp(ctx).getString(K_TOKEN, null) ?: return null
@@ -40,7 +48,7 @@ object Prefs {
     fun client(ctx: Context): HaClient? {
         val url = baseUrl(ctx) ?: return null
         val token = token(ctx) ?: return null
-        return HaClient(url, token)
+        return HaClient(url, token, remoteUrl(ctx))
     }
 
     fun save(ctx: Context, url: String, token: String) {
