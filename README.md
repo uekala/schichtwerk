@@ -18,7 +18,7 @@ Android-App für den FlashForge Creator 5 Pro. Sie spricht ausschließlich mit H
 - **Live-Anzeige:** Dauerbenachrichtigung mit Fortschritt, nur solange ein Druck läuft
 - **Alarme:** Fehler, Pause, gestoppt, Druck fertig mit Kamerabild, Spule fast leer
 - **Widget:** Status, Fortschritt und Restzeit auf dem Homescreen
-- **Updates:** Hinweis auf neue Versionen und Installation per Knopfdruck (GitHub-Token mit Leserecht nötig)
+- **Updates:** Hinweis auf neue Versionen mit Link zum Download (GitHub-Token mit Leserecht nötig)
 
 ## Einrichten
 

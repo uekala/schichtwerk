@@ -176,27 +176,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun installUpdate() {
-        val token = Prefs.githubToken(ctx) ?: return
         val r = release ?: return
-        if (!Updater.canInstall(ctx)) {
-            message = "Bitte erst „Unbekannte Apps installieren“ für Schichtwerk erlauben"
-            runCatching { Updater.openInstallPermission(ctx) }
-            return
-        }
-        if (updateBusy) return
-        updateBusy = true
-        viewModelScope.launch {
-            try {
-                val f = withContext(Dispatchers.IO) { Updater.download(ctx, token, r) }
-                Updater.install(ctx, f)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                message = "Update fehlgeschlagen: ${describe(e)}"
-            }
-            updateBusy = false
-        }
+        runCatching { Updater.open(ctx, r) }.onFailure { message = "Kein Browser gefunden" }
     }
+
 
     fun connect(url: String, token: String) {
         if (url.isBlank() || token.isBlank()) {

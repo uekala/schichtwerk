@@ -166,9 +166,7 @@ fun App(vm: MainViewModel) {
                                 Text("Update verfügbar", color = TextMain, fontWeight = FontWeight.SemiBold)
                                 Text("${r.tag} · installiert ist ${BuildConfig.VERSION_NAME}", color = TextDim, fontSize = 12.sp)
                             }
-                            Button(onClick = vm::installUpdate, enabled = !vm.updateBusy) {
-                                Text(if (vm.updateBusy) "Lädt …" else "Installieren")
-                            }
+                            Button(onClick = vm::installUpdate) { Text("Herunterladen") }
                         }
                     }
                 }
@@ -785,10 +783,11 @@ private fun SettingsTab(vm: MainViewModel) {
             Button(onClick = {
                 runCatching {
                     ctx.startActivity(
-                        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${ctx.packageName}"))
+                        Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
                     )
                 }
-            }) { Text("Akku-Optimierung ausschalten") }
+            }) { Text("Akku-Einstellungen öffnen") }
+            Text("Dort „Alle Apps“ wählen, Schichtwerk suchen und auf „Nicht optimieren“ stellen.", color = TextDim, fontSize = 12.sp)
         }
     }
 
@@ -834,7 +833,7 @@ private fun SettingsTab(vm: MainViewModel) {
     var editGh by remember { mutableStateOf(false) }
     Panel(title = "Updates") {
         Text(
-            if (vm.githubConfigured) "Die App prüft alle 6 Stunden, ob es eine neue Version gibt, und installiert sie auf Knopfdruck."
+            if (vm.githubConfigured) "Die App prüft alle 6 Stunden, ob es eine neue Version gibt. „Herunterladen“ öffnet die Release-Seite; dort die APK laden und antippen."
             else "Für Update-Hinweise braucht die App ein GitHub-Token mit Leserecht auf das Repo schichtwerk.",
             color = TextDim, fontSize = 13.sp,
         )
