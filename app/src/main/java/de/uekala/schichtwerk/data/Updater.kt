@@ -39,7 +39,7 @@ object Updater {
                 403, 404 -> throw IOException("Kein Zugriff auf das Repo – Token braucht Leserecht auf $REPO")
             }
             if (!it.isSuccessful) throw IOException("GitHub antwortet mit Fehler ${it.code}")
-            it.body?.string().orEmpty()
+            it.body.string()
         }
         val o = JSONObject(body)
         val tag = o.optString("tag_name")

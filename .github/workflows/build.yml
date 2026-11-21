@@ -29,7 +29,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
 
       - name: Tests
-        run: ./gradlew --no-daemon testReleaseUnitTest
+        run: ./gradlew --no-daemon testDebugUnitTest
 
       - name: APK bauen
         run: ./gradlew --no-daemon assembleRelease

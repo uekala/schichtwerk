@@ -57,7 +57,7 @@ class HaClient(home: String, private val token: String, remote: String? = null) 
         val body = JSONObject().put("template", Snapshot.TEMPLATE).toString().toRequestBody(JSON)
         exec { request("/api/template").post(body).build() }.use { r ->
             if (!r.isSuccessful) fail(r.code)
-            return Snapshot.parse(r.body?.string().orEmpty())
+            return Snapshot.parse(r.body.string())
         }
     }
 
@@ -84,7 +84,7 @@ class HaClient(home: String, private val token: String, remote: String? = null) 
     private fun getText(path: String): String =
         exec { request(path).build() }.use { r ->
             if (!r.isSuccessful) fail(r.code)
-            r.body?.string().orEmpty()
+            r.body.string()
         }
 
     /** Termine eines Kalenders, z. B. calendar.3d_drucke. */
@@ -126,7 +126,7 @@ class HaClient(home: String, private val token: String, remote: String? = null) 
     private fun image(path: String): Bitmap? =
         exec { request(path).build() }.use { r ->
             if (!r.isSuccessful) return null
-            val bytes = r.body?.bytes() ?: return null
+            val bytes = r.body.bytes()
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
         }
 
@@ -169,7 +169,7 @@ object PrinterDirect {
         val text = try {
             http.newCall(req).execute().use { r ->
                 if (!r.isSuccessful) throw IOException("Drucker antwortet mit Fehler ${r.code}")
-                r.body?.string().orEmpty()
+                r.body.string()
             }
         } catch (e: java.net.ConnectException) {
             throw IOException("Drucker nicht erreichbar – nur im Heimnetz möglich")
