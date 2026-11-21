@@ -28,6 +28,9 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Tests
+        run: ./gradlew --no-daemon testReleaseUnitTest
+
       - name: APK bauen
         run: ./gradlew --no-daemon assembleRelease
 
