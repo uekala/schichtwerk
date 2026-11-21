@@ -24,16 +24,20 @@ Android-App für den FlashForge Creator 5 Pro. Sie spricht ausschließlich mit H
 
 1. APK aus dem neuesten [Release](../../releases) laden und installieren.
 2. In Home Assistant ein langlebiges Zugriffstoken anlegen (Profil → Sicherheit).
-3. In der App Adresse und Token eintragen.
+3. In der App Adresse und Token eintragen, optional eine zweite Adresse für unterwegs. Ist eine
+   der beiden nicht erreichbar, wechselt die App automatisch zur anderen.
 4. Unter *Einstellungen → Hintergrund* die Akku-Optimierung ausschalten, damit die Live-Anzeige
    auch bei geschlossener App startet.
+5. Für die Geschwindigkeit unter *Einstellungen → Drucker direkt* IP-Adresse, Seriennummer und
+   Prüfcode eintragen. Der Befehl geht direkt an den Drucker und klappt nur im Heimnetz.
 
 Das Token wird mit dem Android Keystore verschlüsselt und nur auf dem Gerät gespeichert.
 
 ## Bauen
 
 Jeder Push auf `main` baut über GitHub Actions eine signierte APK und legt ein Release an.
-Lokal: `./gradlew assembleRelease` (JDK 17, Android SDK 35).
+Pull Requests werden genauso gebaut und getestet, aber ohne Release.
+Lokal: `./gradlew testReleaseUnitTest assembleRelease` (JDK 17, Android SDK 35).
 
 Die Entity-IDs stehen in `app/src/main/java/de/uekala/schichtwerk/data/Snapshot.kt` (`Ids`).
 
