@@ -2,7 +2,6 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
@@ -13,7 +12,7 @@ val signingProps = Properties().apply {
 
 android {
     namespace = "de.uekala.schichtwerk"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "de.uekala.schichtwerk"
@@ -45,9 +44,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-    kotlinOptions {
-        jvmTarget = "17"
     }
     buildFeatures {
         compose = true

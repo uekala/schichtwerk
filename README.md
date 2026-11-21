@@ -37,7 +37,7 @@ Das Token wird mit dem Android Keystore verschlüsselt und nur auf dem Gerät ge
 
 Jeder Push auf `main` baut über GitHub Actions eine signierte APK und legt ein Release an.
 Pull Requests werden genauso gebaut und getestet, aber ohne Release.
-Lokal: `./gradlew testReleaseUnitTest assembleRelease` (JDK 17, Android SDK 35).
+Lokal: `./gradlew testDebugUnitTest assembleRelease` (JDK 17, Android SDK 37).
 
 Die Entity-IDs stehen in `app/src/main/java/de/uekala/schichtwerk/data/Snapshot.kt` (`Ids`).
 
