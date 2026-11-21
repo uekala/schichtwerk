@@ -30,7 +30,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -137,7 +137,7 @@ fun App(vm: MainViewModel) {
                 )
                 NavigationBarItem(
                     selected = tab == 2, onClick = { tab = 2 },
-                    icon = { Icon(Icons.Filled.List, contentDescription = null) }, label = { Text("Verlauf") },
+                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) }, label = { Text("Verlauf") },
                 )
                 NavigationBarItem(
                     selected = tab == 3, onClick = { tab = 3 },
