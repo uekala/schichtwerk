@@ -37,7 +37,7 @@ jobs:
       - name: APK benennen
         run: cp app/build/outputs/apk/release/app-release.apk "schichtwerk-${VERSION_NAME}.apk"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: schichtwerk-${{ env.VERSION_NAME }}
           path: schichtwerk-*.apk
