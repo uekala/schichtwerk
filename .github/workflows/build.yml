@@ -44,7 +44,7 @@ jobs:
 
       - name: Release anlegen
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ env.VERSION_NAME }}
           name: Schichtwerk ${{ env.VERSION_NAME }}
