@@ -6,6 +6,7 @@ on:
     paths-ignore:
       - '**.md'
       - 'docs/**'
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -39,6 +40,7 @@ jobs:
           path: schichtwerk-*.apk
 
       - name: Release anlegen
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.VERSION_NAME }}
