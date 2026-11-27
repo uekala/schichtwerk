@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Testversion (de.uekala.schichtwerk.test) – läuft neben der echten App. -->
+    <string name="app_name">Schichtwerk Test</string>
+</resources>

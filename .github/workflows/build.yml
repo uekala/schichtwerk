@@ -1,8 +1,12 @@
 name: APK bauen
 
+# Push auf main und Pull Requests: Tests, Testversion (de.uekala.schichtwerk.test) als Artefakt
+# und eine Probe der Release-Signatur mit Wegwerf-Schlüsseln.
+# Tag mobile-vX.Y.Z: zusätzlich signierte Release-APK und GitHub-Release (für Obtainium).
 on:
   push:
     branches: [main]
+    tags: ['mobile-v*']
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -10,14 +14,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   apk:
     runs-on: ubuntu-latest
     env:
+      # versionCode steigt mit jedem Lauf dieses Workflows (letztes Release vor dem Umbau: 42).
       VERSION_CODE: ${{ github.run_number }}
-      VERSION_NAME: 0.1.${{ github.run_number }}
+      # Alter Sideload-Schlüssel (bis 0.1, öffentlich geworden) – Vorgänger in der Lineage.
+      ALT_CERT_SHA256: C28E04FE11690E4E6D5C2C7D4B63248BEFE4B162556DFEEB706265C182E348AB
     steps:
       - uses: actions/checkout@v7
 
@@ -28,24 +34,79 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
+      - name: Version prüfen
+        run: |
+          VERSION="$(sed -n 's/^appVersion=//p' gradle.properties | tr -d '\r')"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::appVersion in gradle.properties fehlt oder ist keine Version X.Y.Z"
+            exit 1
+          fi
+          if [[ "$GITHUB_REF" == refs/tags/* && "$GITHUB_REF_NAME" != "mobile-v$VERSION" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME passt nicht zu appVersion $VERSION"
+            exit 1
+          fi
+          bash tools/changelog-abschnitt.sh CHANGELOG.md "$VERSION" > /dev/null
+          echo "VERSION_NAME=$VERSION" >> "$GITHUB_ENV"
+
       - name: Tests
         run: ./gradlew --no-daemon testDebugUnitTest
 
-      - name: APK bauen
-        run: ./gradlew --no-daemon assembleRelease
+      - name: APKs bauen
+        run: ./gradlew --no-daemon assembleDebug assembleRelease
 
-      - name: APK benennen
-        run: cp app/build/outputs/apk/release/app-release.apk "schichtwerk-${VERSION_NAME}.apk"
+      - name: Signatur-Probe mit Wegwerf-Schlüsseln
+        run: bash tools/signatur-probe.sh app/build/outputs/apk/release/app-release-unsigned.apk
+
+      - name: Testversion benennen
+        run: cp app/build/outputs/apk/debug/app-debug.apk "schichtwerk-test-${VERSION_NAME}-${VERSION_CODE}.apk"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: schichtwerk-${{ env.VERSION_NAME }}
-          path: schichtwerk-*.apk
+          name: schichtwerk-test-${{ env.VERSION_NAME }}-${{ env.VERSION_CODE }}
+          path: schichtwerk-test-*.apk
+
+      - name: Release-APK signieren
+        if: startsWith(github.ref, 'refs/tags/mobile-v')
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_OLD_KEYSTORE_BASE64: ${{ secrets.ANDROID_OLD_KEYSTORE_BASE64 }}
+          ANDROID_OLD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_OLD_KEYSTORE_PASSWORD }}
+          ANDROID_OLD_KEY_ALIAS: ${{ secrets.ANDROID_OLD_KEY_ALIAS }}
+        run: bash tools/sign-release.sh app/build/outputs/apk/release/app-release-unsigned.apk "schichtwerk-${VERSION_NAME}.apk"
+
+      - name: Release-Signatur prüfen
+        if: startsWith(github.ref, 'refs/tags/mobile-v')
+        env:
+          ANDROID_SIGNING_CERT_SHA256: ${{ vars.ANDROID_SIGNING_CERT_SHA256 }}
+        run: bash tools/verify-apk-signature.sh "schichtwerk-${VERSION_NAME}.apk"
+
+      - uses: actions/upload-artifact@v7
+        if: startsWith(github.ref, 'refs/tags/mobile-v')
+        with:
+          name: release-apk
+          path: schichtwerk-${{ env.VERSION_NAME }}.apk
+
+  release:
+    needs: apk
+    if: startsWith(github.ref, 'refs/tags/mobile-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-apk
 
       - name: Release anlegen
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: v${{ env.VERSION_NAME }}
-          name: Schichtwerk ${{ env.VERSION_NAME }}
-          files: schichtwerk-*.apk
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#mobile-v}"
+          bash tools/changelog-abschnitt.sh CHANGELOG.md "$VERSION" > notes.md
+          gh release create "$GITHUB_REF_NAME" "schichtwerk-$VERSION.apk" \
+            --title "Schichtwerk Mobile $VERSION" --notes-file notes.md --verify-tag

@@ -164,7 +164,7 @@ fun App(vm: MainViewModel) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text("Update verfügbar", color = TextMain, fontWeight = FontWeight.SemiBold)
-                                Text("${r.tag} · installiert ist ${BuildConfig.VERSION_NAME}", color = TextDim, fontSize = 12.sp)
+                                Text("${r.version} · installiert ist ${BuildConfig.VERSION_NAME}", color = TextDim, fontSize = 12.sp)
                             }
                             Button(onClick = vm::installUpdate) { Text("Herunterladen") }
                         }
@@ -830,44 +830,15 @@ private fun SettingsTab(vm: MainViewModel) {
         )
     }
 
-    var editGh by remember { mutableStateOf(false) }
     Panel(title = "Updates") {
         Text(
-            if (vm.githubConfigured) "Die App prüft alle 6 Stunden, ob es eine neue Version gibt. „Herunterladen“ öffnet die Release-Seite; dort die APK laden und antippen."
-            else "Für Update-Hinweise braucht die App ein GitHub-Token mit Leserecht auf das Repo schichtwerk.",
+            if (vm.updateSupported) "Die App prüft alle 6 Stunden, ob es eine neue Version gibt. Am bequemsten installierst du Updates mit Obtainium; „Herunterladen“ öffnet die Release-Seite."
+            else "Das ist die Testversion. Sie sucht nicht nach Updates.",
             color = TextDim, fontSize = 13.sp,
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (vm.githubConfigured) {
-                Button(onClick = { vm.checkUpdate(manual = true) }) { Text("Jetzt prüfen") }
-                OutlinedButton(onClick = vm::removeGithubToken) { Text("Token entfernen") }
-            } else {
-                Button(onClick = { editGh = true }) { Text("Token eintragen") }
-            }
+        if (vm.updateSupported) {
+            Button(onClick = { vm.checkUpdate(manual = true) }) { Text("Jetzt prüfen") }
         }
-    }
-    if (editGh) {
-        var token by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { editGh = false },
-            title = { Text("GitHub-Token") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "Auf github.com: Settings → Developer settings → Fine-grained tokens → Generate. " +
-                            "Repository: nur schichtwerk, Berechtigung „Contents: Read-only“. Das Token wird verschlüsselt auf dem Gerät gespeichert."
-                    )
-                    OutlinedTextField(
-                        token, { token = it }, label = { Text("Token") }, singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(enabled = token.isNotBlank(), onClick = { editGh = false; vm.saveGithubToken(token) }) { Text("Speichern") }
-            },
-            dismissButton = { TextButton(onClick = { editGh = false }) { Text("Abbrechen") } },
-        )
     }
 
     var editRemote by remember { mutableStateOf(false) }

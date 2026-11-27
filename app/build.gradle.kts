@@ -1,13 +1,6 @@
-import java.util.Properties
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
-}
-
-val signingProps = Properties().apply {
-    val f = rootProject.file("signing/sideload.properties")
-    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 android {
@@ -19,25 +12,19 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
-        versionName = System.getenv("VERSION_NAME") ?: "0.1.0"
-    }
-
-    signingConfigs {
-        create("sideload") {
-            storeFile = rootProject.file("signing/sideload.jks")
-            storePassword = signingProps.getProperty("storePassword")
-            keyAlias = signingProps.getProperty("keyAlias")
-            keyPassword = signingProps.getProperty("storePassword")
-        }
+        // Version steht in gradle.properties (appVersion); ein Release-Tag mobile-vX.Y.Z muss dazu passen.
+        versionName = providers.gradleProperty("appVersion").get()
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("sideload")
+            // Bleibt unsigniert: Die CI signiert mit Schlüsselrotation (tools/sign-release.sh).
         }
         debug {
-            signingConfig = signingConfigs.getByName("sideload")
+            // Testversion: eigene App neben der echten, mit dem Debug-Schlüssel – überschreibt sie nie.
+            applicationIdSuffix = ".test"
+            versionNameSuffix = "-test"
         }
     }
 

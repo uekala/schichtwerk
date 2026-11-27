@@ -87,13 +87,9 @@ object Prefs {
         e.apply()
     }
 
-    fun githubToken(ctx: Context): String? =
-        sp(ctx).getString(K_GH_TOKEN, null)?.let { runCatching { decrypt(it) }.getOrNull() }
-
-    fun setGithubToken(ctx: Context, token: String?) {
-        val e = sp(ctx).edit()
-        if (token.isNullOrBlank()) e.remove(K_GH_TOKEN) else e.putString(K_GH_TOKEN, encrypt(token.trim()))
-        e.apply()
+    /** Bis 0.1 brauchte die Update-Prüfung ein GitHub-Token; das Repo ist öffentlich, ein gespeichertes Token wird gelöscht. */
+    fun forgetGithubToken(ctx: Context) {
+        if (sp(ctx).contains(K_GH_TOKEN)) sp(ctx).edit().remove(K_GH_TOKEN).apply()
     }
 
     fun lastUpdateCheck(ctx: Context): Long = sp(ctx).getLong(K_UPDATE_CHECK, 0)

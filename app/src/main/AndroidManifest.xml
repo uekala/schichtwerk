@@ -14,6 +14,8 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Schichtwerk"
         android:usesCleartextTraffic="true">
+        <!-- Klartext nur, weil HA und Drucker im Heimnetz kein HTTPS sprechen; data/Klartext.kt
+             sperrt HTTP zu allen Adressen außerhalb des Heimnetzes. -->
 
         <activity
             android:name=".MainActivity"

@@ -63,8 +63,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var tempsFrom by mutableStateOf(0L)
         private set
-    var githubConfigured by mutableStateOf(Prefs.githubToken(app) != null)
-        private set
     var release by mutableStateOf<Release?>(null)
         private set
     var updateBusy by mutableStateOf(false)
@@ -89,6 +87,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     init {
+        Prefs.forgetGithubToken(app)
         if (System.currentTimeMillis() - Prefs.lastUpdateCheck(app) > 6 * 3600_000L) checkUpdate(manual = false)
     }
 
@@ -160,26 +159,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------------------------------------------------------- Updates
 
-    fun saveGithubToken(token: String) {
-        Prefs.setGithubToken(ctx, token)
-        githubConfigured = token.isNotBlank()
-        if (githubConfigured) checkUpdate(manual = true)
-    }
-
-    fun removeGithubToken() {
-        Prefs.setGithubToken(ctx, null)
-        githubConfigured = false
-        release = null
-    }
+    val updateSupported: Boolean get() = Updater.supported
 
     fun checkUpdate(manual: Boolean) {
-        val token = Prefs.githubToken(ctx) ?: return
+        if (!Updater.supported) return
         viewModelScope.launch {
             try {
-                val r = withContext(Dispatchers.IO) { Updater.latest(token) }
+                val r = withContext(Dispatchers.IO) { Updater.latest() }
                 Prefs.setLastUpdateCheck(ctx, System.currentTimeMillis())
                 release = r?.takeIf { Updater.isNewer(it) }
-                if (manual) message = if (release != null) "Version ${r?.tag} verfügbar" else "Schichtwerk ist aktuell"
+                if (manual) message = if (release != null) "Version ${r?.version} verfügbar" else "Schichtwerk ist aktuell"
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

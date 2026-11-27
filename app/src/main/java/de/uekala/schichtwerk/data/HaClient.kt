@@ -135,6 +135,7 @@ class HaClient(home: String, private val token: String, remote: String? = null) 
         private val working = java.util.concurrent.ConcurrentHashMap<String, String>()
 
         private val http: OkHttpClient = OkHttpClient.Builder()
+            .addInterceptor(Klartext.interceptor)
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
             .callTimeout(20, TimeUnit.SECONDS)
@@ -154,6 +155,7 @@ data class PrinterAccess(val ip: String, val serial: String, val checkCode: Stri
 object PrinterDirect {
     private val JSON = "application/json; charset=utf-8".toMediaType()
     private val http = OkHttpClient.Builder()
+        .addInterceptor(Klartext.interceptor)
         .connectTimeout(4, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
         .callTimeout(10, TimeUnit.SECONDS)
