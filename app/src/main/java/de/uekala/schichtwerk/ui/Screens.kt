@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -54,6 +55,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,6 +69,12 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -121,6 +129,8 @@ fun App(vm: MainViewModel) {
             vm.message = null
         }
     }
+    // Zurück-Taste: erst zum Druck-Reiter, dann wie gewohnt aus der App.
+    BackHandler(enabled = tab != 0) { tab = 0 }
 
     Scaffold(
         containerColor = Bg,
@@ -151,10 +161,12 @@ fun App(vm: MainViewModel) {
             onRefresh = { vm.pullRefresh(); if (tab == 2) vm.loadHistory() },
             modifier = Modifier.fillMaxSize().padding(pad),
         ) {
+            // Jeder Reiter beginnt oben, statt die Scrollposition des vorigen zu erben.
+            val scroll = key(tab) { rememberScrollState() }
             Column(
                 Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scroll)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -174,7 +186,18 @@ fun App(vm: MainViewModel) {
                 when {
                     tab == 3 -> SettingsTab(vm)
                     tab == 2 -> HistoryTab(vm)
-                    s == null -> Panel { Text(if (vm.error == null) "Lade Daten …" else "Keine Daten", color = TextDim) }
+                    s == null -> Panel {
+                        if (vm.error == null) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(Modifier.size(18.dp), color = Accent, strokeWidth = 2.dp)
+                                Spacer(Modifier.width(10.dp))
+                                Text("Lade Daten …", color = TextDim)
+                            }
+                        } else {
+                            Text("Keine Daten vom Drucker.", color = TextMain)
+                            Text("Nach unten ziehen lädt neu. Unter „Optionen“ → „Verbindung“ steht, welche Adresse gerade genutzt wird.", color = TextDim, fontSize = 13.sp)
+                        }
+                    }
                     tab == 0 -> PrintTab(vm, s)
                     else -> MaterialTab(vm, s)
                 }
@@ -241,13 +264,18 @@ internal fun Tile(
 }
 
 @Composable
-private fun SwitchRow(title: String, sub: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+private fun SwitchRow(title: String, sub: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
+    // Die ganze Zeile schaltet, nicht nur der kleine Schalter.
+    Row(
+        Modifier.fillMaxWidth().clickable(role = Role.Switch) { onChange(!checked) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Column(Modifier.weight(1f)) {
             Text(title, color = TextMain)
-            Text(sub, color = TextDim, fontSize = 12.sp)
+            if (sub != null) Text(sub, color = TextDim, fontSize = 12.sp)
         }
-        Switch(checked = checked, onCheckedChange = onChange)
+        Spacer(Modifier.width(12.dp))
+        Switch(checked = checked, onCheckedChange = null)
     }
 }
 
@@ -268,7 +296,7 @@ internal fun KeyValue(label: String, value: String) {
 private fun Header(s: Snapshot?, error: String?, lastUpdate: Long?) {
     Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text("Schichtwerk", color = TextMain, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text("Schichtwerk", color = TextMain, fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.semantics { heading() })
             val stand = lastUpdate?.let {
                 " · Stand " + java.text.SimpleDateFormat("HH:mm:ss", Locale.GERMANY).format(java.util.Date(it))
             }.orEmpty()
@@ -388,12 +416,10 @@ private fun PrintTab(vm: MainViewModel, s: Snapshot) {
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Bad),
             ) { Text("Abbrechen") }
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("LED", color = TextMain, modifier = Modifier.weight(1f))
-            Switch(checked = s.on(Ids.LED), onCheckedChange = vm::setLed)
-        }
+        SwitchRow("LED", null, s.on(Ids.LED), vm::setLed)
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Geschwindigkeit", color = TextMain)
+            if (!s.active) Text("Lässt sich nur während eines Drucks ändern.", color = TextDim, fontSize = 12.sp)
             val speed = s.num(Ids.SPEED)?.toInt()
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 // Der Drucker meldet seine Stufen nicht immer mit dem Wert zurück, der gesetzt wurde
@@ -406,10 +432,11 @@ private fun PrintTab(vm: MainViewModel, s: Snapshot) {
                 }
                 listOf(50 to "Leise", 100 to "Normal", 150 to "Max").forEach { (pct, label) ->
                     val selected = current == pct
+                    val chosen = selected
                     OutlinedButton(
                         onClick = { if (!selected) vm.setSpeed(pct) },
                         enabled = s.active,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).semantics { this.selected = chosen },
                         contentPadding = PaddingValues(horizontal = 4.dp),
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = if (selected) Color(0xFF3A2410) else Color.Transparent,
@@ -428,9 +455,10 @@ private fun PrintTab(vm: MainViewModel, s: Snapshot) {
                 val mode = s.raw(Ids.FILTER_MODE)
                 listOf("Off" to "Aus", "Internal" to "Intern", "External" to "Extern").forEach { (opt, label) ->
                     val selected = mode == opt
+                    val chosen = selected
                     OutlinedButton(
                         onClick = { if (!selected) vm.setFilterMode(opt) },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).semantics { this.selected = chosen },
                         contentPadding = PaddingValues(horizontal = 4.dp),
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = if (selected) Color(0xFF3A2410) else Color.Transparent,
@@ -756,20 +784,8 @@ private fun SettingsTab(vm: MainViewModel) {
     var confirmDisconnect by remember { mutableStateOf(false) }
 
     Panel(title = "Benachrichtigungen") {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Live-Anzeige beim Druck", color = TextMain)
-                Text("Dauerbenachrichtigung mit Fortschritt, nur solange gedruckt wird", color = TextDim, fontSize = 12.sp)
-            }
-            Switch(checked = vm.live, onCheckedChange = vm::updateLive)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Alarme", color = TextMain)
-                Text("Fehler, Pause, Druck fertig oder gestoppt", color = TextDim, fontSize = 12.sp)
-            }
-            Switch(checked = vm.alerts, onCheckedChange = vm::updateAlerts)
-        }
+        SwitchRow("Live-Anzeige beim Druck", "Dauerbenachrichtigung mit Fortschritt, nur solange gedruckt wird", vm.live, vm::updateLive)
+        SwitchRow("Alarme", "Fehler, Pause, Druck fertig oder gestoppt", vm.alerts, vm::updateAlerts)
     }
 
     Panel(title = "Hintergrund") {
@@ -818,7 +834,7 @@ private fun SettingsTab(vm: MainViewModel) {
                     Text("Seriennummer und Prüfcode stehen am Drucker im Menü für den LAN-Modus.")
                     OutlinedTextField(ip, { ip = it }, label = { Text("IP-Adresse") }, singleLine = true)
                     OutlinedTextField(serial, { serial = it }, label = { Text("Seriennummer") }, singleLine = true)
-                    OutlinedTextField(code, { code = it }, label = { Text("Prüfcode") }, singleLine = true)
+                    SecretField(code, { code = it }, "Prüfcode")
                 }
             },
             confirmButton = {
@@ -937,13 +953,7 @@ private fun SetupScreen(vm: MainViewModel) {
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 modifier = Modifier.fillMaxWidth(),
             )
-            OutlinedTextField(
-                value = token, onValueChange = { token = it },
-                label = { Text("Langlebiges Zugriffstoken") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(),
-            )
+            SecretField(token, { token = it }, "Langlebiges Zugriffstoken", Modifier.fillMaxWidth())
             Text(
                 "Adresse: die externe https-Adresse oder die IP im Heimnetz – homeassistant.local funktioniert auf Android oft nicht.\n\n" +
                     "Token erstellen: in Home Assistant auf dein Profil → Sicherheit → Langlebige Zugriffstoken. " +
@@ -952,10 +962,27 @@ private fun SetupScreen(vm: MainViewModel) {
             )
             vm.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             Button(
-                onClick = { vm.connect(url, token, remote.trim()) },
-                enabled = !vm.connecting,
+                onClick = { vm.connect(url.trim(), token.trim(), remote.trim()) },
+                enabled = !vm.connecting && url.isNotBlank() && token.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(if (vm.connecting) "Verbinde …" else "Verbinden") }
         }
     }
+}
+
+/** Eingabefeld für Geheimnisse: verdeckt, mit „Zeigen“ zum Prüfen beim Einfügen. */
+@Composable
+private fun SecretField(value: String, onChange: (String) -> Unit, label: String, modifier: Modifier = Modifier) {
+    var visible by remember { mutableStateOf(false) }
+    OutlinedTextField(
+        value = value, onValueChange = onChange,
+        label = { Text(label) },
+        singleLine = true,
+        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        trailingIcon = {
+            TextButton(onClick = { visible = !visible }) { Text(if (visible) "Verbergen" else "Zeigen", fontSize = 12.sp) }
+        },
+        modifier = modifier,
+    )
 }

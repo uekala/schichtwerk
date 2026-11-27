@@ -1,5 +1,14 @@
 # Änderungen
 
+## Unveröffentlicht
+
+- Token und Prüfcode werden bei der Eingabe verdeckt, mit „Zeigen“ zum Prüfen
+- „Verbinden“ erst aktiv, wenn Adresse und Token eingetragen sind; Leerzeichen am Rand werden entfernt
+- Jeder Reiter beginnt oben; die Zurück-Taste führt erst zum Druck-Reiter
+- Schalter: die ganze Zeile ist antippbar
+- Hinweis, dass die Geschwindigkeit nur während eines Drucks geht
+- Klarere Anzeige, wenn keine Daten kommen
+
 ## 0.2.0
 
 - Neuer Signaturschlüssel mit Schlüsselrotation: Das Update installiert sich über die vorhandene App, ab Android 13 gilt danach nur noch der neue Schlüssel
