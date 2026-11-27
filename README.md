@@ -41,8 +41,10 @@ Das Token wird mit dem Android Keystore verschlüsselt und nur auf dem Gerät ge
   heißt „Schichtwerk Test“, läuft neben der echten App) und eine Probe der Release-Signatur mit
   Wegwerf-Schlüsseln. Ein Release entsteht dabei nicht.
 - Release: `appVersion` in `gradle.properties` erhöhen, Abschnitt `## X.Y.Z` in `CHANGELOG.md`
-  ergänzen, Tag `mobile-vX.Y.Z` pushen. Die CI baut, signiert und prüft die APK und legt das
-  Release „Schichtwerk Mobile X.Y.Z“ mit `schichtwerk-X.Y.Z.apk` an.
+  ergänzen und auf `main` bringen. Dann unter *Actions → APK bauen → Run workflow* (Branch `main`)
+  den Haken „Release anlegen“ setzen – oder den Tag `mobile-vX.Y.Z` pushen. Die CI baut, signiert
+  und prüft die APK, legt den Tag an und veröffentlicht das Release „Schichtwerk Mobile X.Y.Z“ mit
+  `schichtwerk-X.Y.Z.apk`. Ein von Hand angelegtes Release mit diesem Tag ergänzt sie um APK und Text.
 - `versionCode` ist die Laufnummer des Workflows und steigt deshalb mit jedem Build.
 - Lokal: `./gradlew testDebugUnitTest assembleDebug` (JDK 17, Android SDK 37). Lokal gebaute
   Release-APKs sind unsigniert.

@@ -2,7 +2,8 @@ name: APK bauen
 
 # Push auf main und Pull Requests: Tests, Testversion (de.uekala.schichtwerk.test) als Artefakt
 # und eine Probe der Release-Signatur mit Wegwerf-Schlüsseln.
-# Tag mobile-vX.Y.Z: zusätzlich signierte Release-APK und GitHub-Release (für Obtainium).
+# Release (Tag mobile-vX.Y.Z oder „Run workflow“ mit „Release anlegen“ auf main): zusätzlich signierte
+# Release-APK und GitHub-Release (für Obtainium).
 on:
   push:
     branches: [main]
@@ -12,6 +13,11 @@ on:
       - 'docs/**'
   pull_request:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Release mobile-v<appVersion> aus main anlegen (Version aus gradle.properties)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -22,6 +28,7 @@ jobs:
     env:
       # versionCode steigt mit jedem Lauf dieses Workflows (letztes Release vor dem Umbau: 42).
       VERSION_CODE: ${{ github.run_number }}
+      RELEASE: ${{ (startsWith(github.ref, 'refs/tags/mobile-v') || (github.event_name == 'workflow_dispatch' && inputs.release && github.ref == 'refs/heads/main')) }}
       # Alter Sideload-Schlüssel (bis 0.1, öffentlich geworden) – Vorgänger in der Lineage.
       ALT_CERT_SHA256: C28E04FE11690E4E6D5C2C7D4B63248BEFE4B162556DFEEB706265C182E348AB
     steps:
@@ -45,6 +52,10 @@ jobs:
             echo "::error::Tag $GITHUB_REF_NAME passt nicht zu appVersion $VERSION"
             exit 1
           fi
+          if [[ "$RELEASE" == "true" && "$GITHUB_REF" != refs/tags/* ]] && git ls-remote --exit-code --tags origin "mobile-v$VERSION" > /dev/null; then
+            echo "::error::Release mobile-v$VERSION gibt es schon – für ein neues Release appVersion erhöhen und CHANGELOG ergänzen"
+            exit 1
+          fi
           bash tools/changelog-abschnitt.sh CHANGELOG.md "$VERSION" > /dev/null
           echo "VERSION_NAME=$VERSION" >> "$GITHUB_ENV"
 
@@ -66,7 +77,7 @@ jobs:
           path: schichtwerk-test-*.apk
 
       - name: Release-APK signieren
-        if: startsWith(github.ref, 'refs/tags/mobile-v')
+        if: env.RELEASE == 'true'
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -78,20 +89,20 @@ jobs:
         run: bash tools/sign-release.sh app/build/outputs/apk/release/app-release-unsigned.apk "schichtwerk-${VERSION_NAME}.apk"
 
       - name: Release-Signatur prüfen
-        if: startsWith(github.ref, 'refs/tags/mobile-v')
+        if: env.RELEASE == 'true'
         env:
           ANDROID_SIGNING_CERT_SHA256: ${{ vars.ANDROID_SIGNING_CERT_SHA256 }}
         run: bash tools/verify-apk-signature.sh "schichtwerk-${VERSION_NAME}.apk"
 
       - uses: actions/upload-artifact@v7
-        if: startsWith(github.ref, 'refs/tags/mobile-v')
+        if: env.RELEASE == 'true'
         with:
           name: release-apk
           path: schichtwerk-${{ env.VERSION_NAME }}.apk
 
   release:
     needs: apk
-    if: startsWith(github.ref, 'refs/tags/mobile-v')
+    if: (startsWith(github.ref, 'refs/tags/mobile-v') || (github.event_name == 'workflow_dispatch' && inputs.release && github.ref == 'refs/heads/main'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -106,7 +117,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="${GITHUB_REF_NAME#mobile-v}"
+          VERSION="$(sed -n 's/^appVersion=//p' gradle.properties | tr -d '\r')"
+          TAG="mobile-v$VERSION"
           bash tools/changelog-abschnitt.sh CHANGELOG.md "$VERSION" > notes.md
-          gh release create "$GITHUB_REF_NAME" "schichtwerk-$VERSION.apk" \
-            --title "Schichtwerk Mobile $VERSION" --notes-file notes.md --verify-tag
+          APK="schichtwerk-$VERSION.apk"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            # Von Hand angelegtes Release: APK anhängen, Titel und Text aus dem CHANGELOG
+            gh release upload "$TAG" "$APK" --clobber
+            gh release edit "$TAG" --title "Schichtwerk Mobile $VERSION" --notes-file notes.md
+          else
+            # Bei „Run workflow“ entsteht der Tag hier, auf genau dem gebauten Commit
+            gh release create "$TAG" "$APK" --target "$GITHUB_SHA" \
+              --title "Schichtwerk Mobile $VERSION" --notes-file notes.md
+          fi
