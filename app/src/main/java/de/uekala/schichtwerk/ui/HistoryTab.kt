@@ -39,13 +39,25 @@ import java.util.Locale
 fun HistoryTab(vm: MainViewModel) {
     LaunchedEffect(Unit) { vm.loadHistory() }
     val list = vm.history
-    vm.historyError?.let { Panel { Text("Verlauf nicht geladen: $it", color = Bad) } }
+    vm.historyError?.let {
+        Panel {
+            Text("Verlauf nicht geladen: $it", color = Bad)
+            TextButton(onClick = { vm.loadHistory() }) { Text("Erneut laden") }
+        }
+    }
     if (list == null) {
-        Panel { Text("Lade Druckverlauf …", color = TextDim) }
+        // Bei einem Fehler steht oben schon der Hinweis – kein „Lade …“, das nie endet.
+        if (vm.historyError == null) Panel { Text("Lade Druckverlauf …", color = TextDim) }
         return
     }
     if (list.isEmpty()) {
-        Panel { Text("Noch keine beendeten Drucke im Kalender „3D-Drucke“.", color = TextDim) }
+        Panel {
+            Text("Noch keine beendeten Drucke.", color = TextMain)
+            Text(
+                "Der Verlauf kommt aus dem Home-Assistant-Kalender „3D-Drucke“. Jeder beendete Druck erscheint hier, sobald er dort eingetragen ist.",
+                color = TextDim, fontSize = 13.sp,
+            )
+        }
         return
     }
 
