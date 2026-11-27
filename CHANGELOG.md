@@ -8,6 +8,7 @@
 - Schalter: die ganze Zeile ist antippbar
 - Hinweis, dass die Geschwindigkeit nur während eines Drucks geht
 - Klarere Anzeige, wenn keine Daten kommen
+- Verlauf: „Erneut laden“ nach einem Fehler statt eines endlosen „Lade …“; Hinweis, woher der Verlauf kommt
 
 ## 0.2.0
 
