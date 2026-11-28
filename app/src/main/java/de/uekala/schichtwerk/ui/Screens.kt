@@ -341,238 +341,258 @@ private fun PrintTab(vm: MainViewModel, s: Snapshot) {
     var confirmCancel by remember { mutableStateOf(false) }
 
     // Auftrag
-    Panel {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(116.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(
-                    progress = { if (s.active) s.progress / 100f else 0f },
-                    modifier = Modifier.fillMaxSize(),
-                    color = if (s.paused) Warn else Accent,
-                    trackColor = Track,
-                    strokeWidth = 10.dp,
-                    strokeCap = StrokeCap.Round,
-                )
-                val thumb = vm.thumb
-                if (thumb != null && s.active) {
-                    Image(
-                        thumb.asImageBitmap(), contentDescription = null,
-                        modifier = Modifier.size(84.dp).clip(CircleShape),
-                        contentScale = ContentScale.Crop,
+    val jobPanel: @Composable () -> Unit = {
+        Panel {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(116.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(
+                        progress = { if (s.active) s.progress / 100f else 0f },
+                        modifier = Modifier.fillMaxSize(),
+                        color = if (s.paused) Warn else Accent,
+                        trackColor = Track,
+                        strokeWidth = 10.dp,
+                        strokeCap = StrokeCap.Round,
                     )
-                } else {
-                    Text(
-                        if (s.active) "${s.progress} %" else "–",
-                        color = TextMain, fontSize = 24.sp, fontWeight = FontWeight.Bold,
-                    )
-                }
-            }
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    if (s.active) s.title else s.statusLabel,
-                    color = TextMain, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
-                    maxLines = 3, overflow = TextOverflow.Ellipsis,
-                )
-                if (s.active) {
-                    Text("${s.progress} %", color = Accent, fontSize = 30.sp, fontWeight = FontWeight.Bold)
-                    val layer = s.raw(Ids.LAYER)
-                    val layers = s.raw(Ids.LAYERS)
-                    if (layer != null && layers != null) {
-                        Text("Schicht $layer von $layers", color = TextDim, fontSize = 13.sp)
+                    val thumb = vm.thumb
+                    if (thumb != null && s.active) {
+                        Image(
+                            thumb.asImageBitmap(), contentDescription = null,
+                            modifier = Modifier.size(84.dp).clip(CircleShape),
+                            contentScale = ContentScale.Crop,
+                        )
+                    } else {
+                        Text(
+                            if (s.active) "${s.progress} %" else "–",
+                            color = TextMain, fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                        )
                     }
-                } else {
-                    s.raw(Ids.LAST_RESULT)?.let { Text("Letzter Druck: $it", color = TextDim, fontSize = 13.sp) }
+                }
+                Spacer(Modifier.width(16.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        if (s.active) s.title else s.statusLabel,
+                        color = TextMain, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+                        maxLines = 3, overflow = TextOverflow.Ellipsis,
+                    )
+                    if (s.active) {
+                        Text("${s.progress} %", color = Accent, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                        val layer = s.raw(Ids.LAYER)
+                        val layers = s.raw(Ids.LAYERS)
+                        if (layer != null && layers != null) {
+                            Text("Schicht $layer von $layers", color = TextDim, fontSize = 13.sp)
+                        }
+                    } else {
+                        s.raw(Ids.LAST_RESULT)?.let { Text("Letzter Druck: $it", color = TextDim, fontSize = 13.sp) }
+                    }
                 }
             }
-        }
-        if (s.active) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Tile("Restzeit", s.seconds(Ids.REMAINING)?.let(::fmtDurationShort) ?: "–", Modifier.weight(1f), hot = true)
-                Tile("Fertig um", s.etaClock ?: "–", Modifier.weight(1f))
-                Tile("Läuft seit", s.seconds(Ids.ELAPSED)?.let(::fmtDurationShort) ?: "–", Modifier.weight(1f))
-            }
-        }
-        if (s.error) {
-            Text(
-                "Fehler${s.raw(Ids.ERROR_CODE)?.let { " · Code $it" }.orEmpty()}",
-                color = Bad, fontWeight = FontWeight.SemiBold,
-            )
-        }
-        if (s.on(Ids.DOOR)) Text("Tür ist offen", color = Warn, fontSize = 13.sp)
-    }
-
-    // Steuerung
-    Panel(title = "Steuerung") {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (s.paused) {
-                Button(onClick = vm::resume, modifier = Modifier.weight(1f)) { Text("Fortsetzen") }
-            } else {
-                Button(onClick = vm::pause, enabled = s.printing, modifier = Modifier.weight(1f)) { Text("Pause") }
-            }
-            OutlinedButton(
-                onClick = { confirmCancel = true },
-                enabled = s.active,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Bad),
-            ) { Text("Abbrechen") }
-        }
-        SwitchRow("LED", null, s.on(Ids.LED), vm::setLed)
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Geschwindigkeit", color = TextMain)
-            if (!s.active) Text("Lässt sich nur während eines Drucks ändern.", color = TextDim, fontSize = 12.sp)
-            val speed = s.num(Ids.SPEED)?.toInt()
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Der Drucker meldet seine Stufen nicht immer mit dem Wert zurück, der gesetzt wurde
-                // (Maximalstufe z. B. als 140 %), deshalb wird die nächstliegende Stufe markiert.
-                val current = when {
-                    speed == null -> null
-                    speed < 75 -> 50
-                    speed < 125 -> 100
-                    else -> 150
-                }
-                listOf(50 to "Leise", 100 to "Normal", 150 to "Max").forEach { (pct, label) ->
-                    val selected = current == pct
-                    val chosen = selected
-                    OutlinedButton(
-                        onClick = { if (!selected) vm.setSpeed(pct) },
-                        enabled = s.active,
-                        modifier = Modifier.weight(1f).semantics { this.selected = chosen },
-                        contentPadding = PaddingValues(horizontal = 4.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (selected) Color(0xFF3A2410) else Color.Transparent,
-                            contentColor = if (selected) Accent else TextDim,
-                        ),
-                    ) { Text(label, maxLines = 1) }
-                }
-            }
-            if (speed != null) {
-                Text("Drucker meldet $speed %", color = TextDim, fontSize = 12.sp)
-            }
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Luftfilter", color = TextMain)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val mode = s.raw(Ids.FILTER_MODE)
-                listOf("Off" to "Aus", "Internal" to "Intern", "External" to "Extern").forEach { (opt, label) ->
-                    val selected = mode == opt
-                    val chosen = selected
-                    OutlinedButton(
-                        onClick = { if (!selected) vm.setFilterMode(opt) },
-                        modifier = Modifier.weight(1f).semantics { this.selected = chosen },
-                        contentPadding = PaddingValues(horizontal = 4.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (selected) Color(0xFF3A2410) else Color.Transparent,
-                            contentColor = if (selected) Accent else TextDim,
-                        ),
-                    ) { Text(label, maxLines = 1) }
-                }
-            }
-        }
-        if (!s.active && s.status.lowercase() !in setOf("ready", "idle")) {
-            TextButton(onClick = vm::clearStatus) { Text("Status zurücksetzen") }
-        }
-    }
-
-    // Kamera
-    Panel(title = "Kamera") {
-        val cam = vm.camera
-        if (cam != null) {
-            Image(
-                cam.asImageBitmap(), contentDescription = "Kamerabild",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(cam.width.toFloat() / cam.height.coerceAtLeast(1))
-                    .clip(RoundedCornerShape(14.dp)),
-                contentScale = ContentScale.Crop,
-            )
-        } else {
-            Box(
-                Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(14.dp)).background(SurfaceHigh),
-                contentAlignment = Alignment.Center,
-            ) { Text("Kein Kamerabild", color = TextDim) }
-        }
-        s.raw(Ids.AI_LAST_CHECK)?.let {
-            Text("KI-Kontrolle: $it", color = TextDim, fontSize = 12.sp)
-        }
-    }
-
-    // KI-Kontrolle des Drucker-Bots
-    Panel(title = "KI-Kontrolle") {
-        val autoOn = s.on(Ids.AI_AUTOMATION)
-        if (!autoOn) {
-            Text(
-                "Die Automation „Drucker-Bot – KI-Druckkontrolle“ ist in Home Assistant ausgeschaltet. Die Schalter wirken erst, wenn sie läuft.",
-                color = Warn, fontSize = 13.sp,
-            )
-            OutlinedButton(onClick = { vm.setAutomation(Ids.AI_AUTOMATION, true) }) { Text("Automation einschalten") }
-        }
-        SwitchRow("KI prüft Kamerabilder", "Meldet Verdacht auf Fehldruck", s.on(Ids.AI_ON)) { vm.setSwitch(Ids.AI_ON, it) }
-        SwitchRow("KI darf pausieren", "Hält den Druck bei sicherem Fehldruck an", s.on(Ids.AI_PAUSE)) { vm.setSwitch(Ids.AI_PAUSE, it) }
-        SwitchRow("Stumm für diesen Druck", "Keine KI-Meldungen bis zum Druckende", s.on(Ids.AI_MUTE)) { vm.setSwitch(Ids.AI_MUTE, it) }
-        val th = s.num(Ids.AI_THRESHOLD)
-        if (th != null) {
-            val min = s.attrNum(Ids.AI_THRESHOLD, "min") ?: 50.0
-            val max = s.attrNum(Ids.AI_THRESHOLD, "max") ?: 100.0
-            val step = s.attrNum(Ids.AI_THRESHOLD, "step") ?: 5.0
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                KeyValue("Schwelle für Verdacht", "${th.toInt()} %")
+            if (s.active) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { vm.setNumber(Ids.AI_THRESHOLD, (th - step).coerceAtLeast(min)) },
-                        enabled = th > min, modifier = Modifier.weight(1f),
-                    ) { Text("− ${step.toInt()}") }
-                    OutlinedButton(
-                        onClick = { vm.setNumber(Ids.AI_THRESHOLD, (th + step).coerceAtMost(max)) },
-                        enabled = th < max, modifier = Modifier.weight(1f),
-                    ) { Text("+ ${step.toInt()}") }
+                    Tile("Restzeit", s.seconds(Ids.REMAINING)?.let(::fmtDurationShort) ?: "–", Modifier.weight(1f), hot = true)
+                    Tile("Fertig um", s.etaClock ?: "–", Modifier.weight(1f))
+                    Tile("Läuft seit", s.seconds(Ids.ELAPSED)?.let(::fmtDurationShort) ?: "–", Modifier.weight(1f))
                 }
-                Text("Höher = die KI meldet nur, wenn sie sich sicherer ist.", color = TextDim, fontSize = 12.sp)
+            }
+            if (s.error) {
+                Text(
+                    "Fehler${s.raw(Ids.ERROR_CODE)?.let { " · Code $it" }.orEmpty()}",
+                    color = Bad, fontWeight = FontWeight.SemiBold,
+                )
+            }
+            if (s.on(Ids.DOOR)) Text("Tür ist offen", color = Warn, fontSize = 13.sp)
+        }
+    }
+    // Steuerung des laufenden Drucks
+    val controlPanel: @Composable () -> Unit = {
+        Panel(title = "Steuerung") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (s.paused) {
+                    Button(onClick = vm::resume, modifier = Modifier.weight(1f)) { Text("Fortsetzen") }
+                } else {
+                    Button(onClick = vm::pause, enabled = s.printing, modifier = Modifier.weight(1f)) { Text("Pause") }
+                }
+                OutlinedButton(
+                    onClick = { confirmCancel = true },
+                    enabled = s.active,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Bad),
+                ) { Text("Abbrechen") }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Geschwindigkeit", color = TextMain)
+                val speed = s.num(Ids.SPEED)?.toInt()
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Der Drucker meldet seine Stufen nicht immer mit dem Wert zurück, der gesetzt wurde
+                    // (Maximalstufe z. B. als 140 %), deshalb wird die nächstliegende Stufe markiert.
+                    val current = when {
+                        speed == null -> null
+                        speed < 75 -> 50
+                        speed < 125 -> 100
+                        else -> 150
+                    }
+                    listOf(50 to "Leise", 100 to "Normal", 150 to "Max").forEach { (pct, label) ->
+                        val selected = current == pct
+                        val chosen = selected
+                        OutlinedButton(
+                            onClick = { if (!selected) vm.setSpeed(pct) },
+                            enabled = s.active,
+                            modifier = Modifier.weight(1f).semantics { this.selected = chosen },
+                            contentPadding = PaddingValues(horizontal = 4.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (selected) Color(0xFF3A2410) else Color.Transparent,
+                                contentColor = if (selected) Accent else TextDim,
+                            ),
+                        ) { Text(label, maxLines = 1) }
+                    }
+                }
+                if (speed != null) {
+                    Text("Drucker meldet $speed %", color = TextDim, fontSize = 12.sp)
+                }
             }
         }
     }
-
+    // Drucker: Licht, Luftfilter, Status
+    val printerPanel: @Composable () -> Unit = {
+        Panel(title = "Drucker") {
+            SwitchRow("LED", null, s.on(Ids.LED), vm::setLed)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Luftfilter", color = TextMain)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val mode = s.raw(Ids.FILTER_MODE)
+                    listOf("Off" to "Aus", "Internal" to "Intern", "External" to "Extern").forEach { (opt, label) ->
+                        val selected = mode == opt
+                        val chosen = selected
+                        OutlinedButton(
+                            onClick = { if (!selected) vm.setFilterMode(opt) },
+                            modifier = Modifier.weight(1f).semantics { this.selected = chosen },
+                            contentPadding = PaddingValues(horizontal = 4.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if (selected) Color(0xFF3A2410) else Color.Transparent,
+                                contentColor = if (selected) Accent else TextDim,
+                            ),
+                        ) { Text(label, maxLines = 1) }
+                    }
+                }
+            }
+            if (!s.active && s.status.lowercase() !in setOf("ready", "idle")) {
+                TextButton(onClick = vm::clearStatus) { Text("Status zurücksetzen") }
+            }
+        }
+    }
+    // Kamera
+    val cameraPanel: @Composable () -> Unit = {
+        Panel(title = "Kamera") {
+            val cam = vm.camera
+            if (cam != null) {
+                Image(
+                    cam.asImageBitmap(), contentDescription = "Kamerabild",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(cam.width.toFloat() / cam.height.coerceAtLeast(1))
+                        .clip(RoundedCornerShape(14.dp)),
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
+                Box(
+                    Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(14.dp)).background(SurfaceHigh),
+                    contentAlignment = Alignment.Center,
+                ) { Text("Kein Kamerabild", color = TextDim) }
+            }
+            s.raw(Ids.AI_LAST_CHECK)?.let {
+                Text("KI-Kontrolle: $it", color = TextDim, fontSize = 12.sp)
+            }
+        }
+    }
+    // KI-Kontrolle des Drucker-Bots
+    val aiPanel: @Composable () -> Unit = {
+        Panel(title = "KI-Kontrolle") {
+            val autoOn = s.on(Ids.AI_AUTOMATION)
+            if (!autoOn) {
+                Text(
+                    "Die Automation „Drucker-Bot – KI-Druckkontrolle“ ist in Home Assistant ausgeschaltet. Die Schalter wirken erst, wenn sie läuft.",
+                    color = Warn, fontSize = 13.sp,
+                )
+                OutlinedButton(onClick = { vm.setAutomation(Ids.AI_AUTOMATION, true) }) { Text("Automation einschalten") }
+            }
+            SwitchRow("KI prüft Kamerabilder", "Meldet Verdacht auf Fehldruck", s.on(Ids.AI_ON)) { vm.setSwitch(Ids.AI_ON, it) }
+            SwitchRow("KI darf pausieren", "Hält den Druck bei sicherem Fehldruck an", s.on(Ids.AI_PAUSE)) { vm.setSwitch(Ids.AI_PAUSE, it) }
+            SwitchRow("Stumm für diesen Druck", "Keine KI-Meldungen bis zum Druckende", s.on(Ids.AI_MUTE)) { vm.setSwitch(Ids.AI_MUTE, it) }
+            val th = s.num(Ids.AI_THRESHOLD)
+            if (th != null) {
+                val min = s.attrNum(Ids.AI_THRESHOLD, "min") ?: 50.0
+                val max = s.attrNum(Ids.AI_THRESHOLD, "max") ?: 100.0
+                val step = s.attrNum(Ids.AI_THRESHOLD, "step") ?: 5.0
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    KeyValue("Schwelle für Verdacht", "${th.toInt()} %")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { vm.setNumber(Ids.AI_THRESHOLD, (th - step).coerceAtLeast(min)) },
+                            enabled = th > min, modifier = Modifier.weight(1f),
+                        ) { Text("− ${step.toInt()}") }
+                        OutlinedButton(
+                            onClick = { vm.setNumber(Ids.AI_THRESHOLD, (th + step).coerceAtMost(max)) },
+                            enabled = th < max, modifier = Modifier.weight(1f),
+                        ) { Text("+ ${step.toInt()}") }
+                    }
+                    Text("Höher = die KI meldet nur, wenn sie sich sicherer ist.", color = TextDim, fontSize = 12.sp)
+                }
+            }
+        }
+    }
     // Temperaturen
-    Panel(title = "Temperaturen") {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val bed = temp(s, Ids.BED, Ids.BED_TARGET)
-            val chamber = temp(s, Ids.CHAMBER, Ids.CHAMBER_TARGET)
-            Tile("Bett", bed.first, Modifier.weight(1f), sub = bed.second, hot = bed.second != null)
-            Tile("Kammer", chamber.first, Modifier.weight(1f), sub = chamber.second, hot = chamber.second != null)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (i in 1..4) {
-                val t = temp(s, Ids.tool(i), Ids.toolTarget(i))
-                Tile("Düse $i", t.first, Modifier.weight(1f), sub = t.second, hot = t.second != null)
+    val tempPanel: @Composable () -> Unit = {
+        Panel(title = "Temperaturen") {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val bed = temp(s, Ids.BED, Ids.BED_TARGET)
+                val chamber = temp(s, Ids.CHAMBER, Ids.CHAMBER_TARGET)
+                Tile("Bett", bed.first, Modifier.weight(1f), sub = bed.second, hot = bed.second != null)
+                Tile("Kammer", chamber.first, Modifier.weight(1f), sub = chamber.second, hot = chamber.second != null)
             }
-        }
-        var showChart by rememberSaveable { mutableStateOf(false) }
-        TextButton(onClick = {
-            showChart = !showChart
-            if (showChart) vm.loadTemps()
-        }) { Text(if (showChart) "Verlauf ausblenden" else if (s.active) "Verlauf seit Druckstart" else "Verlauf der letzten 3 Stunden") }
-        if (showChart) {
-            LaunchedEffect(Unit) {
-                while (true) {
-                    delay(60_000)
-                    vm.loadTemps()
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (i in 1..4) {
+                    val t = temp(s, Ids.tool(i), Ids.toolTarget(i))
+                    Tile("Düse $i", t.first, Modifier.weight(1f), sub = t.second, hot = t.second != null)
                 }
             }
-            val data = vm.temps
-            if (data == null) Text("Lade Verlauf …", color = TextDim, fontSize = 13.sp)
-            else TempChart(data, vm.tempsFrom)
+            var showChart by rememberSaveable { mutableStateOf(false) }
+            TextButton(onClick = {
+                showChart = !showChart
+                if (showChart) vm.loadTemps()
+            }) { Text(if (showChart) "Verlauf ausblenden" else if (s.active) "Verlauf seit Druckstart" else "Verlauf der letzten 3 Stunden") }
+            if (showChart) {
+                LaunchedEffect(Unit) {
+                    while (true) {
+                        delay(60_000)
+                        vm.loadTemps()
+                    }
+                }
+                val data = vm.temps
+                if (data == null) Text("Lade Verlauf …", color = TextDim, fontSize = 13.sp)
+                else TempChart(data, vm.tempsFrom)
+            }
+        }
+    }
+    // Details
+    val detailPanel: @Composable () -> Unit = {
+        Panel(title = "Details") {
+            KeyValue("Geschwindigkeit", s.value(Ids.SPEED))
+            KeyValue("Bauteillüfter", s.value(Ids.FAN_PART))
+            KeyValue("Kammerlüfter", s.value(Ids.FAN_CHAMBER))
+            KeyValue("Filament", s.raw(Ids.FILAMENT_TYPE) ?: "–")
+            KeyValue("TVOC", s.value(Ids.TVOC))
+            KeyValue("Freier Speicher", s.value(Ids.DISK_FREE, 2))
+            KeyValue("Firmware", s.raw(Ids.FIRMWARE) ?: "–")
         }
     }
 
-    // Details
-    Panel(title = "Details") {
-        KeyValue("Geschwindigkeit", s.value(Ids.SPEED))
-        KeyValue("Bauteillüfter", s.value(Ids.FAN_PART))
-        KeyValue("Kammerlüfter", s.value(Ids.FAN_CHAMBER))
-        KeyValue("Filament", s.raw(Ids.FILAMENT_TYPE) ?: "–")
-        KeyValue("TVOC", s.value(Ids.TVOC))
-        KeyValue("Freier Speicher", s.value(Ids.DISK_FREE, 2))
-        KeyValue("Firmware", s.raw(Ids.FIRMWARE) ?: "–")
+    // Beim Druck zählt, was gerade passiert: Fortschritt, Kamera, Eingriffe. Im Leerlauf: Zustand der Maschine.
+    val order = if (s.active) {
+        listOf("job" to jobPanel, "camera" to cameraPanel, "control" to controlPanel, "ai" to aiPanel, "temp" to tempPanel, "printer" to printerPanel, "detail" to detailPanel)
+    } else {
+        listOf("job" to jobPanel, "temp" to tempPanel, "printer" to printerPanel, "camera" to cameraPanel, "ai" to aiPanel, "detail" to detailPanel)
     }
+    // key hält den Zustand je Kasten (z. B. aufgeklappter Temperaturverlauf), auch wenn sich die Reihenfolge ändert.
+    order.forEach { (id, panel) -> key(id) { panel() } }
 
     if (confirmCancel) {
         AlertDialog(
@@ -783,6 +803,7 @@ private fun SettingsTab(vm: MainViewModel) {
     val ctx = LocalContext.current
     var confirmDisconnect by remember { mutableStateOf(false) }
 
+    SectionLabel("Im Alltag")
     Panel(title = "Benachrichtigungen") {
         SwitchRow("Live-Anzeige beim Druck", "Dauerbenachrichtigung mit Fortschritt, nur solange gedruckt wird", vm.live, vm::updateLive)
         SwitchRow("Alarme", "Fehler, Pause, Druck fertig oder gestoppt", vm.alerts, vm::updateAlerts)
@@ -808,6 +829,7 @@ private fun SettingsTab(vm: MainViewModel) {
     }
 
     var editDirect by remember { mutableStateOf(false) }
+    SectionLabel("Einrichtung", "Einmal einstellen, danach selten nötig.")
     Panel(title = "Drucker direkt") {
         Text(
             if (vm.directConfigured) "Eingerichtet. Die Geschwindigkeit wird direkt am Drucker gesetzt – das geht nur im Heimnetz."
@@ -985,4 +1007,13 @@ private fun SecretField(value: String, onChange: (String) -> Unit, label: String
         },
         modifier = modifier,
     )
+}
+
+/** Zwischenüberschrift zwischen den Kästen, damit lange Reiter sich in Gruppen gliedern. */
+@Composable
+private fun SectionLabel(title: String, hint: String? = null) {
+    Column(Modifier.padding(top = 8.dp, start = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(title.uppercase(), color = TextDim, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, modifier = Modifier.semantics { heading() })
+        if (hint != null) Text(hint, color = TextDim, fontSize = 12.sp)
+    }
 }
