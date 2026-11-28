@@ -289,7 +289,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 it.callPlainService("rest_command", "creator_5_pro_speed", JSONObject().put("speed", percent))
             } catch (e: java.io.IOException) {
                 if (e.message?.contains("fehlt") == true) {
-                    throw java.io.IOException("erst unter Einstellungen → Drucker direkt einrichten")
+                    throw java.io.IOException("erst unter Optionen → Drucker direkt einrichten")
                 }
                 throw e
             }

@@ -13,6 +13,7 @@ object Monitor {
     private const val K_PAUSED = "m_paused"
     private const val K_ERROR = "m_error"
     private const val K_TITLE = "m_title"
+    private const val K_MAX_PROGRESS = "m_max_progress"
 
     @Synchronized
     fun process(ctx: Context, s: Snapshot, client: HaClient? = null) {
@@ -22,6 +23,7 @@ object Monitor {
         val wasPaused = sp.getBoolean(K_PAUSED, false)
         val wasError = sp.getBoolean(K_ERROR, false)
         val lastTitle = sp.getString(K_TITLE, null) ?: "Druck"
+        val maxProgress = sp.getInt(K_MAX_PROGRESS, 0)
 
         // Ist der Drucker gerade nicht erreichbar, bleibt der letzte bekannte Stand stehen.
         if (!s.online && wasActive) return
@@ -33,8 +35,7 @@ object Monitor {
                     Notifier.alert(ctx, "Druckerfehler$code", "${s.title} · ${s.progress} %")
                 }
                 wasActive && !s.active -> {
-                    val done = s.progress >= 100 || s.status.lowercase() in setOf("completed", "complete")
-                    if (done) {
+                    if (s.finishedAfter(maxProgress)) {
                         // Kamerabild des fertigen Drucks mitschicken, falls die Kamera antwortet.
                         val photo = client?.let { c -> runCatching { c.cameraImage(Ids.CAMERA) }.getOrNull() }
                         Notifier.alert(ctx, "Druck fertig", lastTitle, photo)
@@ -52,7 +53,11 @@ object Monitor {
             .putBoolean(K_ACTIVE, s.active)
             .putBoolean(K_PAUSED, s.paused)
             .putBoolean(K_ERROR, s.error)
-        if (s.active) e.putString(K_TITLE, s.title)
+        if (s.active) {
+            e.putString(K_TITLE, s.title)
+            // Höchster Fortschritt dieses Drucks; kurz vor dem Ende springt der Wert schon auf 0 %.
+            e.putInt(K_MAX_PROGRESS, if (wasActive) maxOf(maxProgress, s.progress) else s.progress)
+        }
         e.apply()
     }
 
