@@ -38,7 +38,9 @@ android {
     }
     lint {
         checkReleaseBuilds = false
-        abortOnError = false
+        abortOnError = true
+        // Versionen von Abhängigkeiten und Werkzeugen hält Dependabot aktuell.
+        disable += setOf("GradleDependency", "AndroidGradlePluginVersion", "NewerVersionAvailable")
     }
 }
 
