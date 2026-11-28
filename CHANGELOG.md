@@ -6,7 +6,9 @@
 - „Verbinden“ erst aktiv, wenn Adresse und Token eingetragen sind; Leerzeichen am Rand werden entfernt
 - Jeder Reiter beginnt oben; die Zurück-Taste führt erst zum Druck-Reiter
 - Schalter: die ganze Zeile ist antippbar
-- Hinweis, dass die Geschwindigkeit nur während eines Drucks geht
+- Druck-Reiter ordnet sich nach Zustand: Beim Druck stehen Fortschritt, Kamera und Steuerung oben; im Leerlauf Temperaturen und Drucker, ohne ausgegraute Druckknöpfe
+- LED, Luftfilter und „Status zurücksetzen“ in einem eigenen Kasten „Drucker“
+- Optionen gegliedert in „Im Alltag“ und „Einrichtung“
 - Klarere Anzeige, wenn keine Daten kommen
 - Verlauf: „Erneut laden“ nach einem Fehler statt eines endlosen „Lade …“; Hinweis, woher der Verlauf kommt
 
