@@ -50,6 +50,16 @@ object Notifier {
             ctx, Manifest.permission.POST_NOTIFICATIONS
         ) == PackageManager.PERMISSION_GRANTED
 
+    /** Zeigt [n] an, wenn Benachrichtigungen erlaubt sind; eine gerade entzogene Berechtigung wird abgefangen. */
+    private fun post(ctx: Context, id: Int, n: Notification) {
+        if (!allowed(ctx)) return
+        try {
+            NotificationManagerCompat.from(ctx).notify(id, n)
+        } catch (e: SecurityException) {
+            // Berechtigung zwischen Prüfung und Aufruf entzogen: dann eben ohne Anzeige.
+        }
+    }
+
     /** Dauerbenachrichtigung mit Fortschritt. [snap] = null zeigt nur "Verbinde …". */
     fun live(ctx: Context, snap: Snapshot?): Notification {
         val b = NotificationCompat.Builder(ctx, CH_LIVE)
@@ -70,7 +80,7 @@ object Notifier {
     }
 
     fun showLive(ctx: Context, snap: Snapshot?) {
-        if (allowed(ctx)) NotificationManagerCompat.from(ctx).notify(ID_LIVE, live(ctx, snap))
+        post(ctx, ID_LIVE, live(ctx, snap))
     }
 
     fun cancelLive(ctx: Context) = NotificationManagerCompat.from(ctx).cancel(ID_LIVE)
@@ -102,6 +112,6 @@ object Notifier {
             .setAutoCancel(true)
             .setContentIntent(openApp(ctx))
             .build()
-        NotificationManagerCompat.from(ctx).notify(id, n)
+        post(ctx, id, n)
     }
 }
