@@ -73,7 +73,7 @@ object Notifier {
         if (!allowed(ctx)) return
         try {
             NotificationManagerCompat.from(ctx).notify(ID_LIVE, live(ctx, snap))
-        } catch (_: SecurityException) {
+        } catch (e: SecurityException) {
             // Berechtigung zwischen Prüfung und Aufruf entzogen: dann eben ohne Live-Anzeige.
         }
     }
