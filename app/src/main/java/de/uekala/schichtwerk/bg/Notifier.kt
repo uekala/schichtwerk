@@ -71,7 +71,11 @@ object Notifier {
 
     fun showLive(ctx: Context, snap: Snapshot?) {
         if (!allowed(ctx)) return
-        NotificationManagerCompat.from(ctx).notify(ID_LIVE, live(ctx, snap))
+        try {
+            NotificationManagerCompat.from(ctx).notify(ID_LIVE, live(ctx, snap))
+        } catch (_: SecurityException) {
+            // Berechtigung zwischen Prüfung und Aufruf entzogen: dann eben ohne Live-Anzeige.
+        }
     }
 
     fun cancelLive(ctx: Context) = NotificationManagerCompat.from(ctx).cancel(ID_LIVE)
