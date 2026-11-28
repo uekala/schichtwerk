@@ -11,6 +11,7 @@
 - Optionen gegliedert in „Im Alltag“ und „Einrichtung“
 - Klarere Anzeige, wenn keine Daten kommen
 - Verlauf: „Erneut laden“ nach einem Fehler statt eines endlosen „Lade …“; Hinweis, woher der Verlauf kommt
+- Alarm „Druck fertig“ statt „Druck gestoppt“ auch dann, wenn der Drucker nach dem Ende gleich auf „Bereit“ springt
 
 ## 0.2.0
 

@@ -171,6 +171,19 @@ class Snapshot(private val m: Map<String, Ent>) {
             }
         }
 
+    /**
+     * Ob der gerade beendete Druck fertig wurde. Der Drucker zeigt „Fertig“ manchmal nur Sekunden
+     * und springt dann mit 0 % auf „Bereit“ – dann zählen der höchste Fortschritt des Drucks
+     * ([maxProgress]) oder das Ergebnis, das Home Assistant schon festgehalten hat.
+     */
+    fun finishedAfter(maxProgress: Int): Boolean {
+        val st = status.lowercase()
+        if (progress >= 100 || st in setOf("completed", "complete")) return true
+        if (error || st !in setOf("ready", "idle")) return false
+        return maxProgress >= 99 ||
+            (maxProgress > 0 && raw(Ids.LAST_RESULT)?.startsWith("Erfolgreich") == true)
+    }
+
     /** Dauer-Sensor in Sekunden, egal ob HA Sekunden, Minuten oder Stunden liefert. */
     fun seconds(id: String): Long? {
         val n = num(id) ?: return null

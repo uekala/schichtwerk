@@ -1,7 +1,9 @@
 package de.uekala.schichtwerk.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SnapshotTest {
@@ -78,6 +80,29 @@ class SnapshotTest {
         assertEquals("Druckt", snap(online, Ids.STATUS to ent("printing")).statusLabel)
         assertEquals("Bereit", snap(online, Ids.STATUS to ent("ready")).statusLabel)
         assertEquals("Fertig", snap(online, Ids.STATUS to ent("completed")).statusLabel)
+    }
+
+    @Test
+    fun druckFertigAuchWennDerDruckerGleichAufBereitSpringt() {
+        val online = Ids.ONLINE to ent("on")
+        assertTrue(snap(online, Ids.STATUS to ent("completed"), Ids.PROGRESS to ent("0")).finishedAfter(40))
+        // „Fertig“ nur Sekunden zu sehen: schon „Bereit“ mit 0 %, vorher 99 %.
+        assertTrue(snap(online, Ids.STATUS to ent("ready"), Ids.PROGRESS to ent("0")).finishedAfter(99))
+        // Home Assistant hat den Erfolg schon festgehalten.
+        val erfolg = Ids.LAST_RESULT to ent("Erfolgreich abgeschlossen")
+        assertTrue(snap(online, Ids.STATUS to ent("ready"), erfolg).finishedAfter(40))
+    }
+
+    @Test
+    fun druckGestopptBeiAbbruchOderOhneHinweisAufErfolg() {
+        val online = Ids.ONLINE to ent("on")
+        val bereit = Ids.STATUS to ent("ready")
+        assertFalse(snap(online, bereit, Ids.LAST_RESULT to ent("Druck läuft")).finishedAfter(42))
+        assertFalse(snap(online, Ids.STATUS to ent("cancelled")).finishedAfter(99))
+        assertFalse(snap(online, Ids.STATUS to ent("unknown")).finishedAfter(99))
+        assertFalse(snap(online, bereit, Ids.ERROR to ent("on")).finishedAfter(100))
+        // Ergebnis eines früheren Drucks zählt nicht, wenn dieser Druck nie Fortschritt hatte.
+        assertFalse(snap(online, bereit, Ids.LAST_RESULT to ent("Erfolgreich abgeschlossen")).finishedAfter(0))
     }
 
     @Test
