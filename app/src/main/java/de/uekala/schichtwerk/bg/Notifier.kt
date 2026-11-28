@@ -70,7 +70,8 @@ object Notifier {
     }
 
     fun showLive(ctx: Context, snap: Snapshot?) {
-        if (allowed(ctx)) NotificationManagerCompat.from(ctx).notify(ID_LIVE, live(ctx, snap))
+        if (!allowed(ctx)) return
+        NotificationManagerCompat.from(ctx).notify(ID_LIVE, live(ctx, snap))
     }
 
     fun cancelLive(ctx: Context) = NotificationManagerCompat.from(ctx).cancel(ID_LIVE)
